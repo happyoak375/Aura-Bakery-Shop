@@ -3,33 +3,29 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, MessageCircle, ArrowRight } from 'lucide-react';
-import { useCartStore } from '../../lib/store';
-import { CartItem } from '../../lib/store';
+import { useCartStore, CartItem } from '../../lib/store';
 
 export default function SuccessPage() {
   const { items, getTotal, clearCart } = useCartStore();
-  const [mounted, setMounted] = useState(false);
   
-  // We use local state to "freeze" the order details for the receipt,
-  // allowing us to safely clear the global cart in the background.
   const [orderItems, setOrderItems] = useState<CartItem[]>([]);
   const [orderTotal, setOrderTotal] = useState(0);
 
   useEffect(() => {
-    setMounted(true);
-    
-    // If they arrive with items, save them locally, then wipe the global cart
+    // Si llegan con items, delegamos la acción al final de la cola de eventos
+    // para evitar el error de renderizado en cascada síncrono.
     if (items.length > 0) {
-      setOrderItems([...items]);
-      setOrderTotal(getTotal());
-      clearCart();
+      const timer = setTimeout(() => {
+        setOrderItems([...items]);
+        setOrderTotal(getTotal());
+        clearCart();
+      }, 0);
+      
+      return () => clearTimeout(timer); // Limpieza de seguridad
     }
   }, [items, getTotal, clearCart]);
 
-  if (!mounted) return null;
-
-  // Generate a dynamic WhatsApp link pre-filled with a message
-  const bakeryPhone = "573000000000"; // Replace with the real Aura Bakery WhatsApp number
+  const bakeryPhone = "573000000000"; 
   const whatsappMessage = encodeURIComponent(
     `¡Hola! Acabo de realizar un pedido en Aura Bakery por $${orderTotal.toLocaleString('es-CO')}. ¿Me confirman que lo recibieron? 🍰`
   );
@@ -39,7 +35,6 @@ export default function SuccessPage() {
     <main className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
       <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
         
-        {/* Success Icon & Header */}
         <div className="flex justify-center mb-6">
           <div className="bg-green-50 p-4 rounded-full">
             <CheckCircle2 size={64} className="text-green-500" />
@@ -50,15 +45,14 @@ export default function SuccessPage() {
           Tu pedido ha sido recibido y ya estamos preparando todo para ti.
         </p>
 
-        {/* Order Summary Card */}
         {orderItems.length > 0 && (
           <div className="bg-gray-50 rounded-3xl p-6 text-left mb-8 border border-gray-100">
             <h2 className="font-bold text-zinc-900 mb-4 border-b border-gray-200 pb-2">Resumen de tu compra</h2>
             <ul className="space-y-3 mb-4">
               {orderItems.map((item) => (
-                <li key={item.id} className="flex justify-between text-sm font-medium text-zinc-700">
+                <li key={item.cartItemId} className="flex justify-between text-sm font-medium text-zinc-700">
                   <span>{item.quantity}x {item.name}</span>
-                  <span>${(item.price * item.quantity).toLocaleString('es-CO')}</span>
+                  <span>${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')}</span>
                 </li>
               ))}
             </ul>
@@ -69,7 +63,6 @@ export default function SuccessPage() {
           </div>
         )}
 
-        {/* WhatsApp Handoff (The MVP Automation) */}
         <a 
           href={whatsappUrl}
           target="_blank"
@@ -80,7 +73,6 @@ export default function SuccessPage() {
           Escribir por WhatsApp
         </a>
 
-        {/* Return to Home */}
         <Link 
           href="/"
           className="inline-flex items-center justify-center gap-2 text-zinc-500 font-bold hover:text-zinc-900 transition-colors py-4"

@@ -1,192 +1,214 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Store, Bike, Clock, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Store, CreditCard, MessageCircle, AlertTriangle } from 'lucide-react';
 import { useCartStore } from '../../lib/store';
-import { mockWindows } from '../../lib/mockData';
+import { MOCK_GLOBAL_CONFIG, mockWindows } from '../../lib/mockData';
 
-export default function CheckoutPage() {
+// Componente interno que maneja la lógica (separado para usar Suspense con useSearchParams)
+function CheckoutForm() {
   const router = useRouter();
-  const { items, getTotal } = useCartStore();
-  const [mounted, setMounted] = useState(false);
+  const searchParams = useSearchParams();
+  
+  // 1. LECTURA DEL MODO DIRECTO (El requerimiento de tu cliente)
+  const isDirectMode = searchParams.get('mode') === 'direct';
+  
+  const { items, directPurchaseItem, getTotal, getMostRestrictiveAvailability } = useCartStore();
 
-  // Form State
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [method, setMethod] = useState<'pickup' | 'delivery'>('pickup');
+  // Definimos qué productos vamos a cobrar (los del carrito o el directo)
+  const checkoutItems = isDirectMode 
+    ? (directPurchaseItem ? [directPurchaseItem] : []) 
+    : items;
+  
+  const subtotal = getTotal(isDirectMode);
+  const restrictiveType = getMostRestrictiveAvailability(isDirectMode);
+
+  // ESTADOS DEL FORMULARIO
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
+  const [city, setCity] = useState(MOCK_GLOBAL_CONFIG.areaMetropolitanaDropdown[0]);
   const [address, setAddress] = useState('');
-  const [selectedWindow, setSelectedWindow] = useState<string>('');
+  
+  // 2. REGLA DE COBRO DE ENVÍO
+  const shippingFee = deliveryMethod === 'delivery' ? MOCK_GLOBAL_CONFIG.flat_delivery_fee : 0;
+  const total = subtotal + shippingFee;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // 3. REGLA DEL ÁREA METROPOLITANA
+  const isOutOfBounds = deliveryMethod === 'delivery' && city === 'Otra ciudad (Fuera de cobertura)';
 
-  if (!mounted) return null;
-
-  // Protect the route: if cart is empty, don't let them stay on checkout
-  if (items.length === 0) {
+  // Si recargan la página en modo directo y se borró el estado temporal, los devolvemos al menú
+  if (checkoutItems.length === 0) {
     return (
-      <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
-        <h1 className="text-2xl font-bold mb-4">Tu carrito está vacío</h1>
-        <Link href="/menu" className="bg-black text-white px-6 py-3 rounded-full font-bold">Volver al menú</Link>
-      </main>
+      <div className="text-center py-20">
+        <h2 className="text-2xl font-bold mb-4">No hay productos para procesar</h2>
+        <Link href="/menu" className="text-blue-600 underline">Volver al menú</Link>
+      </div>
     );
   }
 
-  const handlePayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In Week 3, this is where the Wompi/MercadoPago integration will go.
-    // For now, we simulate a successful payment and route to the success page.
+  // Generador de mensaje de WhatsApp para casos especiales
+  const getWhatsAppLink = (reason: string) => {
+    const msg = encodeURIComponent(`Hola, estaba intentando comprar en la web pero ${reason}. ¿Me pueden ayudar con mi pedido?`);
+    return `https://wa.me/${MOCK_GLOBAL_CONFIG.whatsapp_number}?text=${msg}`;
+  };
+
+  const handleSimulatePayment = () => {
+    // En el futuro real, aquí abrimos el widget de Wompi. Por ahora, vamos a success.
     router.push('/success');
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-32 pt-6 px-6">
-      <div className="max-w-2xl mx-auto">
-        
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/cart" className="p-2 -ml-2 text-zinc-500 hover:text-black hover:bg-gray-100 rounded-full transition-colors">
-            <ArrowLeft size={24} />
-          </Link>
-          <h1 className="text-3xl font-extrabold text-zinc-900 tracking-tight">Checkout</h1>
+    <div className="max-w-2xl mx-auto pb-32">
+      
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-8">
+        <button onClick={() => router.back()} className="p-2 -ml-2 text-zinc-500 hover:text-black hover:bg-gray-100 rounded-full transition-colors">
+          <ArrowLeft size={24} />
+        </button>
+        <h1 className="text-3xl font-extrabold text-zinc-900 tracking-tight">Checkout</h1>
+      </div>
+
+      {/* Resumen Rápido */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6">
+        <h2 className="font-bold text-zinc-900 mb-4 border-b border-gray-100 pb-2">Resumen de compra</h2>
+        <ul className="space-y-2 mb-4">
+          {checkoutItems.map(item => (
+            <li key={item.cartItemId} className="flex justify-between text-sm text-zinc-600 font-medium">
+              <span>{item.quantity}x {item.name} {item.selectedVariant ? `(${item.selectedVariant.name})` : ''}</span>
+              <span>${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="flex justify-between text-sm font-bold text-zinc-500 mb-1">
+          <span>Subtotal</span>
+          <span>${subtotal.toLocaleString('es-CO')}</span>
         </div>
+        {deliveryMethod === 'delivery' && (
+          <div className="flex justify-between text-sm font-bold text-zinc-500 mb-3">
+            <span>Domicilio (Tarifa Fija)</span>
+            <span>${shippingFee.toLocaleString('es-CO')}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-xl font-extrabold text-zinc-900 pt-3 border-t border-gray-100">
+          <span>Total a pagar</span>
+          <span>${total.toLocaleString('es-CO')}</span>
+        </div>
+      </div>
 
-        <form onSubmit={handlePayment} className="space-y-8">
+      {/* Método de Entrega */}
+      <div className="mb-6">
+        <h2 className="font-bold text-zinc-900 mb-3 ml-1">¿Cómo deseas recibirlo?</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setDeliveryMethod('delivery')}
+            className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${
+              deliveryMethod === 'delivery' ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
+            }`}
+          >
+            <MapPin size={24} className={`mb-2 ${deliveryMethod === 'delivery' ? 'text-black' : 'text-zinc-400'}`} />
+            <span className={`font-bold ${deliveryMethod === 'delivery' ? 'text-black' : 'text-zinc-500'}`}>Domicilio</span>
+            <span className="text-xs font-bold text-zinc-400">+$8.900</span>
+          </button>
           
-          {/* 1. DATOS PERSONALES */}
-          <section className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-zinc-900 mb-4">Tus Datos</h2>
-            <div className="space-y-4">
-              <input 
-                type="text" 
-                placeholder="Nombre completo" 
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 text-zinc-900 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all"
-              />
-              <input 
-                type="tel" 
-                placeholder="Teléfono (WhatsApp)" 
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 text-zinc-900 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all"
-              />
-            </div>
-          </section>
+          <button
+            onClick={() => setDeliveryMethod('pickup')}
+            className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${
+              deliveryMethod === 'pickup' ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
+            }`}
+          >
+            <Store size={24} className={`mb-2 ${deliveryMethod === 'pickup' ? 'text-black' : 'text-zinc-400'}`} />
+            <span className={`font-bold ${deliveryMethod === 'pickup' ? 'text-black' : 'text-zinc-500'}`}>Recoger en tienda</span>
+            <span className="text-xs font-bold text-green-500">Gratis</span>
+          </button>
+        </div>
+      </div>
 
-          {/* 2. MÉTODO DE ENTREGA */}
-          <section className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-zinc-900 mb-4">Método de entrega</h2>
-            <div className="flex gap-4 mb-4">
-              <button
-                type="button"
-                onClick={() => setMethod('pickup')}
-                className={`flex-1 flex flex-col items-center justify-center gap-2 py-4 rounded-2xl border-2 transition-colors ${
-                  method === 'pickup' ? 'border-black bg-zinc-50 text-black' : 'border-gray-100 text-zinc-400 hover:border-gray-200'
-                }`}
+      {/* Formulario de Dirección (Solo si es Delivery) */}
+      {deliveryMethod === 'delivery' && (
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6 animate-in fade-in slide-in-from-top-4">
+          <h2 className="font-bold text-zinc-900 mb-4">Datos de entrega</h2>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold text-zinc-700 mb-1">Ciudad / Municipio</label>
+              <select 
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-zinc-900 font-medium focus:outline-none focus:ring-2 focus:ring-black"
               >
-                <Store size={24} />
-                <span className="font-bold text-sm">Pickup</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMethod('delivery')}
-                className={`flex-1 flex flex-col items-center justify-center gap-2 py-4 rounded-2xl border-2 transition-colors ${
-                  method === 'delivery' ? 'border-black bg-zinc-50 text-black' : 'border-gray-100 text-zinc-400 hover:border-gray-200'
-                }`}
-              >
-                <Bike size={24} />
-                <span className="font-bold text-sm">Delivery</span>
-              </button>
+                {MOCK_GLOBAL_CONFIG.areaMetropolitanaDropdown.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+                <option value="Otra ciudad (Fuera de cobertura)">Otra ciudad (Fuera de cobertura)</option>
+              </select>
             </div>
 
-            {/* Conditionally show Address field if Delivery is selected */}
-            {method === 'delivery' && (
-              <input 
-                type="text" 
-                placeholder="Dirección de entrega" 
-                required
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 text-zinc-900 px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-black transition-all mt-2 animate-in fade-in slide-in-from-top-2"
-              />
-            )}
-          </section>
-
-          {/* 3. VENTANAS DE HORARIO (The Capacity Engine) */}
-          <section className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold text-zinc-900 mb-4 flex items-center gap-2">
-              <Clock size={20} /> Elige tu horario
-            </h2>
-            <div className="space-y-3">
-              {mockWindows.map((window) => {
-                const isSoldOut = window.bookedCount >= window.maxCapacity;
-                
-                return (
-                  <label 
-                    key={window.id}
-                    className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      isSoldOut 
-                        ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed' 
-                        : selectedWindow === window.id 
-                          ? 'border-black bg-zinc-50' 
-                          : 'border-gray-100 hover:border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        selectedWindow === window.id ? 'border-black' : 'border-gray-300'
-                      }`}>
-                        {selectedWindow === window.id && <div className="w-2.5 h-2.5 bg-black rounded-full" />}
-                      </div>
-                      <span className={`font-bold ${isSoldOut ? 'text-zinc-400' : 'text-zinc-900'}`}>
-                        {window.label}
-                      </span>
-                    </div>
-                    {isSoldOut && (
-                      <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-1 rounded-md">
-                        Agotado
-                      </span>
-                    )}
-                    {/* Hide the radio input visually but keep it for functionality */}
-                    <input 
-                      type="radio" 
-                      name="deliveryWindow" 
-                      value={window.id}
-                      disabled={isSoldOut}
-                      onChange={(e) => setSelectedWindow(e.target.value)}
-                      className="hidden"
-                      required
-                    />
-                  </label>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* 4. TOTAL & PAGO */}
-          <div className="pt-4">
-            <button 
-              type="submit"
-              className="w-full bg-black text-white text-xl font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!selectedWindow} // Prevent payment if no window is selected
-            >
-              Pagar ${(getTotal() + (method === 'delivery' ? 5000 : 0)).toLocaleString('es-CO')}
-            </button>
-            {method === 'delivery' && (
-              <p className="text-center text-zinc-500 text-sm mt-3 font-medium">
-                Incluye $5.000 de costo de envío
-              </p>
+            {!isOutOfBounds && (
+              <div>
+                <label className="block text-sm font-bold text-zinc-700 mb-1">Dirección completa</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: Carrera 43A # 1-50, Apto 201"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black"
+                />
+              </div>
             )}
           </div>
+        </div>
+      )}
 
-        </form>
-      </div>
+      {/* Bloqueador de Fuera de Cobertura */}
+      {isOutOfBounds ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center animate-in fade-in zoom-in-95">
+          <AlertTriangle size={32} className="text-amber-500 mx-auto mb-3" />
+          <h3 className="text-lg font-extrabold text-amber-900 mb-2">Fuera del Área Metropolitana</h3>
+          <p className="text-amber-800 text-sm mb-6 font-medium">
+            Por ahora nuestras entregas normales están disponibles solo en el Área Metropolitana. Si quieres, nuestro equipo puede ayudarte a revisar una opción especial de envío.
+          </p>
+          <a 
+            href={getWhatsAppLink('mi dirección está fuera del Área Metropolitana')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full bg-amber-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-amber-600 transition-colors shadow-md"
+          >
+            <MessageCircle size={20} /> Hablar con un asesor
+          </a>
+        </div>
+      ) : (
+        /* Botonera de Pago Normal */
+        <div className="space-y-3">
+          <button 
+            onClick={handleSimulatePayment}
+            className="w-full bg-black text-white text-lg font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95"
+          >
+            <CreditCard size={20} /> Pagar online con Wompi
+          </button>
+          
+          <a 
+            href={getWhatsAppLink(`prefiero confirmar el pago por transferencia de mi pedido de $${total}`)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full bg-white text-zinc-700 border-2 border-gray-200 text-base font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:border-black transition-colors active:scale-95"
+          >
+            <MessageCircle size={18} /> Pagar con transferencia (Asesor)
+          </a>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+// Exportamos la página envuelta en Suspense (Requisito estricto de Next.js para usar useSearchParams)
+export default function CheckoutPage() {
+  return (
+    <main className="min-h-screen bg-gray-50 pt-6 px-6">
+      <Suspense fallback={<div className="text-center py-20 font-bold">Cargando tu orden...</div>}>
+        <CheckoutForm />
+      </Suspense>
     </main>
   );
 }
