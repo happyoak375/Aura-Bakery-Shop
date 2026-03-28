@@ -6,8 +6,8 @@ import { useCartStore } from '../../lib/store';
 import { useEffect, useState } from 'react';
 
 export default function StickyFooter() {
-  // 1. Subscribe directly to 'items' so React knows to re-render when the cart changes
-  const items = useCartStore((state) => state.items);
+  // 1. Grab items (to trigger re-renders) AND your helper functions!
+  const { items, getTotal, getTotalItems } = useCartStore();
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
@@ -18,12 +18,12 @@ export default function StickyFooter() {
   // Prevent hydration errors by returning null until the component has mounted on the client
   if (!mounted) return null;
 
-  // 2. Calculate the totals directly from the watched array
-  const totalItems = items.reduce((total, item) => total + item.quantity, 0);
-  const totalAmount = items.reduce((total, item) => total + (item.price * item.quantity), 0);
+  // 2. Use your store's built-in math instead of doing it manually
+  const totalItemsCount = getTotalItems();
+  const totalAmount = getTotal();
 
   // 3. Hide if empty or if we are already in the checkout flow
-  if (totalItems === 0 || pathname === '/cart' || pathname === '/checkout' || pathname === '/success') {
+  if (totalItemsCount === 0 || pathname === '/cart' || pathname === '/checkout' || pathname === '/success') {
     return null;
   }
 
@@ -36,7 +36,7 @@ export default function StickyFooter() {
         >
           <div className="flex items-center gap-3">
             <div className="bg-white/20 px-3 py-1 rounded-full text-sm">
-              {totalItems}
+              {totalItemsCount}
             </div>
             <span>Ver carrito</span>
           </div>
