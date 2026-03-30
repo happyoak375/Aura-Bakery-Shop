@@ -33,7 +33,7 @@ export interface Product {
 export const MOCK_GLOBAL_CONFIG = {
   same_day_cutoff_time: "12:00",
   flat_delivery_fee: 8900,
-  whatsapp_number: "19086724090", // Aquí irá el número de Aura
+  whatsapp_number: "3173285832", // Aquí irá el número de Aura
   areaMetropolitanaDropdown: [
     'Medellín', 'Envigado', 'Itagüí', 'Sabaneta', 'La Estrella', 'Caldas', 'Bello', 'Copacabana', 'Girardota', 'Barbosa'
   ]

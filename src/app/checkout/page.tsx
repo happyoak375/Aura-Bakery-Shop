@@ -1,214 +1,328 @@
 "use client";
 
-import { useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MapPin, Store, CreditCard, MessageCircle, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, MessageCircle, MapPin, Store, Clock } from 'lucide-react';
 import { useCartStore } from '../../lib/store';
-import { MOCK_GLOBAL_CONFIG, mockWindows } from '../../lib/mockData';
+import { Cormorant_Garamond } from 'next/font/google';
 
-// Componente interno que maneja la lógica (separado para usar Suspense con useSearchParams)
-function CheckoutForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  
-  // 1. LECTURA DEL MODO DIRECTO (El requerimiento de tu cliente)
-  const isDirectMode = searchParams.get('mode') === 'direct';
-  
-  const { items, directPurchaseItem, getTotal, getMostRestrictiveAvailability } = useCartStore();
+// 1. Nuevas importaciones avanzadas de Firebase
+import { collection, getDocs, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
-  // Definimos qué productos vamos a cobrar (los del carrito o el directo)
-  const checkoutItems = isDirectMode 
-    ? (directPurchaseItem ? [directPurchaseItem] : []) 
-    : items;
-  
-  const subtotal = getTotal(isDirectMode);
-  const restrictiveType = getMostRestrictiveAvailability(isDirectMode);
+const cormorant = Cormorant_Garamond({ 
+  subsets: ["latin"],
+  weight: ['600']
+});
 
-  // ESTADOS DEL FORMULARIO
-  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
-  const [city, setCity] = useState(MOCK_GLOBAL_CONFIG.areaMetropolitanaDropdown[0]);
-  const [address, setAddress] = useState('');
-  
-  // 2. REGLA DE COBRO DE ENVÍO
-  const shippingFee = deliveryMethod === 'delivery' ? MOCK_GLOBAL_CONFIG.flat_delivery_fee : 0;
-  const total = subtotal + shippingFee;
-
-  // 3. REGLA DEL ÁREA METROPOLITANA
-  const isOutOfBounds = deliveryMethod === 'delivery' && city === 'Otra ciudad (Fuera de cobertura)';
-
-  // Si recargan la página en modo directo y se borró el estado temporal, los devolvemos al menú
-  if (checkoutItems.length === 0) {
-    return (
-      <div className="text-center py-20">
-        <h2 className="text-2xl font-bold mb-4">No hay productos para procesar</h2>
-        <Link href="/menu" className="text-blue-600 underline">Volver al menú</Link>
-      </div>
-    );
-  }
-
-  // Generador de mensaje de WhatsApp para casos especiales
-  const getWhatsAppLink = (reason: string) => {
-    const msg = encodeURIComponent(`Hola, estaba intentando comprar en la web pero ${reason}. ¿Me pueden ayudar con mi pedido?`);
-    return `https://wa.me/${MOCK_GLOBAL_CONFIG.whatsapp_number}?text=${msg}`;
-  };
-
-  const handleSimulatePayment = () => {
-    // En el futuro real, aquí abrimos el widget de Wompi. Por ahora, vamos a success.
-    router.push('/success');
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto pb-32">
-      
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <button onClick={() => router.back()} className="p-2 -ml-2 text-zinc-500 hover:text-black hover:bg-gray-100 rounded-full transition-colors">
-          <ArrowLeft size={24} />
-        </button>
-        <h1 className="text-3xl font-extrabold text-zinc-900 tracking-tight">Checkout</h1>
-      </div>
-
-      {/* Resumen Rápido */}
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6">
-        <h2 className="font-bold text-zinc-900 mb-4 border-b border-gray-100 pb-2">Resumen de compra</h2>
-        <ul className="space-y-2 mb-4">
-          {checkoutItems.map(item => (
-            <li key={item.cartItemId} className="flex justify-between text-sm text-zinc-600 font-medium">
-              <span>{item.quantity}x {item.name} {item.selectedVariant ? `(${item.selectedVariant.name})` : ''}</span>
-              <span>${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="flex justify-between text-sm font-bold text-zinc-500 mb-1">
-          <span>Subtotal</span>
-          <span>${subtotal.toLocaleString('es-CO')}</span>
-        </div>
-        {deliveryMethod === 'delivery' && (
-          <div className="flex justify-between text-sm font-bold text-zinc-500 mb-3">
-            <span>Domicilio (Tarifa Fija)</span>
-            <span>${shippingFee.toLocaleString('es-CO')}</span>
-          </div>
-        )}
-        <div className="flex justify-between text-xl font-extrabold text-zinc-900 pt-3 border-t border-gray-100">
-          <span>Total a pagar</span>
-          <span>${total.toLocaleString('es-CO')}</span>
-        </div>
-      </div>
-
-      {/* Método de Entrega */}
-      <div className="mb-6">
-        <h2 className="font-bold text-zinc-900 mb-3 ml-1">¿Cómo deseas recibirlo?</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setDeliveryMethod('delivery')}
-            className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${
-              deliveryMethod === 'delivery' ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
-            }`}
-          >
-            <MapPin size={24} className={`mb-2 ${deliveryMethod === 'delivery' ? 'text-black' : 'text-zinc-400'}`} />
-            <span className={`font-bold ${deliveryMethod === 'delivery' ? 'text-black' : 'text-zinc-500'}`}>Domicilio</span>
-            <span className="text-xs font-bold text-zinc-400">+$8.900</span>
-          </button>
-          
-          <button
-            onClick={() => setDeliveryMethod('pickup')}
-            className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all ${
-              deliveryMethod === 'pickup' ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
-            }`}
-          >
-            <Store size={24} className={`mb-2 ${deliveryMethod === 'pickup' ? 'text-black' : 'text-zinc-400'}`} />
-            <span className={`font-bold ${deliveryMethod === 'pickup' ? 'text-black' : 'text-zinc-500'}`}>Recoger en tienda</span>
-            <span className="text-xs font-bold text-green-500">Gratis</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Formulario de Dirección (Solo si es Delivery) */}
-      {deliveryMethod === 'delivery' && (
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6 animate-in fade-in slide-in-from-top-4">
-          <h2 className="font-bold text-zinc-900 mb-4">Datos de entrega</h2>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-zinc-700 mb-1">Ciudad / Municipio</label>
-              <select 
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-zinc-900 font-medium focus:outline-none focus:ring-2 focus:ring-black"
-              >
-                {MOCK_GLOBAL_CONFIG.areaMetropolitanaDropdown.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-                <option value="Otra ciudad (Fuera de cobertura)">Otra ciudad (Fuera de cobertura)</option>
-              </select>
-            </div>
-
-            {!isOutOfBounds && (
-              <div>
-                <label className="block text-sm font-bold text-zinc-700 mb-1">Dirección completa</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej: Carrera 43A # 1-50, Apto 201"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-black"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Bloqueador de Fuera de Cobertura */}
-      {isOutOfBounds ? (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center animate-in fade-in zoom-in-95">
-          <AlertTriangle size={32} className="text-amber-500 mx-auto mb-3" />
-          <h3 className="text-lg font-extrabold text-amber-900 mb-2">Fuera del Área Metropolitana</h3>
-          <p className="text-amber-800 text-sm mb-6 font-medium">
-            Por ahora nuestras entregas normales están disponibles solo en el Área Metropolitana. Si quieres, nuestro equipo puede ayudarte a revisar una opción especial de envío.
-          </p>
-          <a 
-            href={getWhatsAppLink('mi dirección está fuera del Área Metropolitana')}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full bg-amber-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-amber-600 transition-colors shadow-md"
-          >
-            <MessageCircle size={20} /> Hablar con un asesor
-          </a>
-        </div>
-      ) : (
-        /* Botonera de Pago Normal */
-        <div className="space-y-3">
-          <button 
-            onClick={handleSimulatePayment}
-            className="w-full bg-black text-white text-lg font-bold py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95"
-          >
-            <CreditCard size={20} /> Pagar online con Wompi
-          </button>
-          
-          <a 
-            href={getWhatsAppLink(`prefiero confirmar el pago por transferencia de mi pedido de $${total}`)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full bg-white text-zinc-700 border-2 border-gray-200 text-base font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:border-black transition-colors active:scale-95"
-          >
-            <MessageCircle size={18} /> Pagar con transferencia (Asesor)
-          </a>
-        </div>
-      )}
-
-    </div>
-  );
+interface TimeSlot {
+  id: string;
+  label: string;
+  maxCapacity: number;
+  currentOrders: number;
+  isActive: boolean;
 }
 
-// Exportamos la página envuelta en Suspense (Requisito estricto de Next.js para usar useSearchParams)
 export default function CheckoutPage() {
+  const router = useRouter();
+  const { items, getTotal, clearCart } = useCartStore();
+  const [mounted, setMounted] = useState(false);
+
+  // Form State
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
+  const [address, setAddress] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [timeSlot, setTimeSlot] = useState('');
+  const [notes, setNotes] = useState('');
+
+  // Database State
+  const [dbTimeSlots, setDbTimeSlots] = useState<TimeSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Nuevo estado de carga
+
+  useEffect(() => {
+    setMounted(true);
+    
+    const fetchTimeSlots = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'time_slots'));
+        const slotsData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as TimeSlot[];
+        
+        setDbTimeSlots(slotsData);
+      } catch (error) {
+        console.error("Error fetching time slots:", error);
+      } finally {
+        setIsLoadingSlots(false);
+      }
+    };
+
+    fetchTimeSlots();
+  }, []);
+
+  const totalAmount = getTotal();
+
+  useEffect(() => {
+    if (mounted && items.length === 0) {
+      router.push('/menu');
+    }
+  }, [mounted, items, router]);
+
+  if (!mounted || items.length === 0) return null;
+
+  // 2. Nuestra nueva función asíncrona con Transacciones de Firebase
+  const handleWhatsAppOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!timeSlot) {
+      alert("Por favor selecciona una ventana de entrega.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Referencia al documento específico del horario seleccionado
+      const timeSlotRef = doc(db, 'time_slots', timeSlot);
+      // Referencia para crear un nuevo documento en la colección de órdenes
+      const newOrderRef = doc(collection(db, 'orders'));
+
+      // 3. Ejecutamos la transacción para prevenir Race Conditions
+      await runTransaction(db, async (transaction) => {
+        const timeSlotDoc = await transaction.get(timeSlotRef);
+        
+        if (!timeSlotDoc.exists()) {
+          throw new Error("El horario no existe.");
+        }
+
+        const currentData = timeSlotDoc.data() as TimeSlot;
+        
+        // Verificamos si alguien más tomó el último cupo mientras llenábamos el formulario
+        if (currentData.currentOrders >= currentData.maxCapacity) {
+          throw new Error("Lo sentimos, este horario se acaba de llenar.");
+        }
+
+        // Si hay cupo, actualizamos el contador (+1)
+        transaction.update(timeSlotRef, {
+          currentOrders: currentData.currentOrders + 1
+        });
+
+        // Y guardamos la orden en nuestra base de datos para ser dueños de la data
+        transaction.set(newOrderRef, {
+          customerName: name,
+          customerPhone: phone,
+          deliveryMethod,
+          address: deliveryMethod === 'delivery' ? address : null,
+          neighborhood: deliveryMethod === 'delivery' ? neighborhood : null,
+          timeSlotId: timeSlot,
+          items: items,
+          totalAmount,
+          notes,
+          status: 'pending',
+          createdAt: serverTimestamp()
+        });
+      });
+
+      // 4. Si la transacción fue exitosa, preparamos el mensaje de WhatsApp
+      const itemsList = items.map(item => {
+        let text = `• ${item.quantity}x ${item.name} ($${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')})`;
+        if (item.selectedVariant) text += `\n  - ${item.selectedVariant.name}`;
+        if (item.selectedPreferences?.length) {
+          text += `\n  - ${item.selectedPreferences.map(p => p.name).join(', ')}`;
+        }
+        return text;
+      }).join('\n');
+
+      const selectedSlotLabel = dbTimeSlots.find(s => s.id === timeSlot)?.label;
+
+      const message = `*¡Hola Aura Bakery! Quisiera hacer un pedido:* 🥐☕\n\n` +
+        `*🕒 VENTANA DE ENTREGA:*\n${selectedSlotLabel?.toUpperCase()}\n\n` +
+        `*🛒 MI ORDEN:*\n${itemsList}\n\n` +
+        `*💰 TOTAL:* $${totalAmount.toLocaleString('es-CO')}\n\n` +
+        `*👤 MIS DATOS:*\n` +
+        `- Nombre: ${name}\n` +
+        `- Teléfono: ${phone}\n` +
+        `- Método: ${deliveryMethod === 'delivery' ? 'Envío a domicilio 🛵' : 'Recoger en tienda 🏪'}\n` +
+        (deliveryMethod === 'delivery' ? `- Dirección: ${address}\n- Barrio: ${neighborhood}\n` : '') +
+        (notes ? `\n*📝 NOTAS:* ${notes}\n` : '');
+
+      const encodedMessage = encodeURIComponent(message);
+      const whatsappNumber = "573000000000"; 
+      window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
+
+      clearCart();
+      router.push('/success');
+
+    } catch (error: any) {
+      console.error("Transaction failed: ", error);
+      alert(error.message || "Hubo un error al procesar tu pedido. Por favor intenta de nuevo.");
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-gray-50 pt-6 px-6">
-      <Suspense fallback={<div className="text-center py-20 font-bold">Cargando tu orden...</div>}>
-        <CheckoutForm />
-      </Suspense>
+    <main className="min-h-screen bg-gray-50 pb-32 font-sans">
+      <div className="bg-white sticky top-0 z-20 border-b border-gray-100 px-6 py-4 flex items-center gap-4">
+        <Link href="/cart" className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
+          <ArrowLeft size={24} className="text-zinc-900" />
+        </Link>
+        <h1 className={`text-2xl text-zinc-900 ${cormorant.className}`}>finalizar pedido</h1>
+      </div>
+
+      <div className="max-w-xl mx-auto px-6 pt-6">
+        <form onSubmit={handleWhatsAppOrder} className="space-y-6">
+          
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock size={20} className="text-zinc-900" />
+              <h2 className="font-bold text-lg text-zinc-900 lowercase">ventana de entrega</h2>
+            </div>
+            
+            <div className="space-y-3">
+              {isLoadingSlots ? (
+                <div className="text-zinc-400 text-sm font-light lowercase animate-pulse">cargando horarios...</div>
+              ) : dbTimeSlots.length === 0 ? (
+                <div className="text-red-500 text-sm font-light lowercase">no hay ventanas disponibles hoy.</div>
+              ) : (
+                dbTimeSlots.map((slot) => {
+                  const isFull = slot.currentOrders >= slot.maxCapacity;
+                  const isAvailable = slot.isActive && !isFull;
+
+                  return (
+                    <label 
+                      key={slot.id}
+                      className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
+                        !isAvailable ? 'border-gray-50 bg-gray-50 opacity-60 cursor-not-allowed' : 
+                        timeSlot === slot.id ? 'border-black bg-zinc-50 cursor-pointer' : 'border-gray-100 hover:border-gray-200 cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="radio" 
+                          name="timeSlot"
+                          required
+                          value={slot.id}
+                          checked={timeSlot === slot.id}
+                          onChange={(e) => setTimeSlot(e.target.value)}
+                          disabled={!isAvailable}
+                          className="w-4 h-4 accent-black disabled:accent-gray-300"
+                        />
+                        <span className={`font-medium lowercase ${!isAvailable ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
+                          {slot.label}
+                        </span>
+                      </div>
+                      
+                      {!isAvailable && (
+                        <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded lowercase">agotado</span>
+                      )}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDeliveryMethod('delivery')}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors lowercase ${
+                deliveryMethod === 'delivery' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50'
+              }`}
+            >
+              <MapPin size={18} /> domicilio
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeliveryMethod('pickup')}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors lowercase ${
+                deliveryMethod === 'pickup' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50'
+              }`}
+            >
+              <Store size={18} /> recoger
+            </button>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+            <h2 className="font-bold text-lg text-zinc-900 mb-2 lowercase">tus datos</h2>
+            
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">nombre completo</label>
+              <input 
+                type="text" 
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
+                placeholder="ej. camila rojas"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">teléfono (whatsapp)</label>
+              <input 
+                type="tel" 
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
+                placeholder="300 000 0000"
+              />
+            </div>
+
+            {deliveryMethod === 'delivery' && (
+              <div className="space-y-4 pt-2">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">dirección de entrega</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
+                    placeholder="calle, carrera, apto..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">barrio</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={neighborhood}
+                    onChange={(e) => setNeighborhood(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
+                    placeholder="ej. el poblado"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">notas (opcional)</label>
+              <textarea 
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all resize-none h-20 lowercase"
+                placeholder="detalles adicionales..."
+              />
+            </div>
+          </div>
+
+          <button 
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-[#25D366] text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-[#20bd5a] transition-all shadow-xl shadow-green-100 active:scale-95 mt-8 lowercase disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            <MessageCircle size={22} />
+            {isSubmitting ? 'procesando...' : 'confirmar pedido'}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

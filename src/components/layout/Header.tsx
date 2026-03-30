@@ -1,45 +1,55 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { ShoppingBag } from 'lucide-react';
 import { useCartStore } from '../../lib/store';
 import { useEffect, useState } from 'react';
-import { Dancing_Script } from 'next/font/google';
 
-// 1. Initialize the cursive font
-const dancingScript = Dancing_Script({ 
-  subsets: ['latin'],
-  weight: ['700'] // Bold weight makes it pop as a logo
-});
 export default function Header() {
-  // Subscribe directly to the items array here as well
-  const items = useCartStore((state) => state.items);
+  const { getTotalItems } = useCartStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Calculate total items
-  const totalItems = items.reduce((total, item) => total + item.quantity, 0);
+  const totalItemsCount = getTotalItems();
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
-      <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+      
+      {/* Added 'relative' here so the absolute logo knows where the center is */}
+      <div className="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between relative">
         
-        <Link href="/" className={`text-3xl text-zinc-900 ${dancingScript.className}`}>
-          Aura Bakery
+        {/* Invisible spacer block on the left to balance the flexbox layout */}
+        <div className="w-10" />
+
+        {/* Centered Image Logo */}
+        <Link 
+          href="/" 
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hover:opacity-80 transition-opacity"
+        >
+          <Image 
+            src="/images/logo-aura.png" 
+            alt="Aura Bakery Logo" 
+            width={140} 
+            height={48} 
+            className="h-40 w-auto object-contain"
+            priority // Tells Next.js to load this immediately since it's above the fold
+          />
         </Link>
 
+        {/* Cart Icon - Stays on the far right */}
         <Link 
           href="/cart" 
-          className="relative p-2 -mr-2 text-zinc-900 hover:bg-gray-100 rounded-full transition-colors flex items-center justify-center"
+          className="relative p-2.5 -mr-2.5 text-zinc-900 hover:bg-gray-100 rounded-full transition-colors flex items-center justify-center"
         >
           <ShoppingBag size={24} />
           
-          {mounted && totalItems > 0 && (
+          {mounted && totalItemsCount > 0 && (
             <span className="absolute top-0 right-0 translate-x-1 -translate-y-1 bg-black text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-white">
-              {totalItems}
+              {totalItemsCount}
             </span>
           )}
         </Link>
