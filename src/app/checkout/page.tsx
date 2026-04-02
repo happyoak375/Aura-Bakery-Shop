@@ -1,5 +1,6 @@
 "use client";
 
+import { getWompiSignature } from '../actions/wompi';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -22,30 +23,6 @@ interface TimeSlot {
   currentOrders: number;
   isActive: boolean;
 }
-
-// --- NEW: Wompi URL Generator ---
-const getWompiCheckoutUrl = (orderId: string, totalCop: number) => {
-  const publicKey = process.env.NEXT_PUBLIC_WOMPI_PUBLIC_KEY;
-  
-  if (!publicKey) {
-    console.error("Falta la llave pública de Wompi en .env.local");
-    return '#';
-  }
-
-  const amountInCents = totalCop * 100;
-  // Redirects back to your site after payment
-  const redirectUrl = `${window.location.origin}/success`; 
-
-  const params = new URLSearchParams({
-    'public-key': publicKey,
-    'currency': 'COP',
-    'amount-in-cents': amountInCents.toString(),
-    'reference': orderId, 
-    'redirect-url': redirectUrl,
-  });
-
-  return `https://checkout.wompi.co/p/?${params.toString()}`;
-};
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -101,7 +78,6 @@ export default function CheckoutPage() {
 
   if (!mounted || items.length === 0) return null;
 
-  // --- UPDATED: Process Order Logic ---
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -154,11 +130,31 @@ export default function CheckoutPage() {
       // --- NEW: Split Routing Based on Payment Method ---
       clearCart(); // Clear cart for both methods once saved
 
-      if (paymentMethod === 'wompi') {
-        // Send user to Wompi
-        const wompiUrl = getWompiCheckoutUrl(orderId, totalAmount);
-        window.location.href = wompiUrl;
+     if (paymentMethod === 'wompi') {
+        // Convert to cents safely
+        const amountInCents = Math.round(totalAmount * 100);
+        
+        // 1. Pedimos al servidor que genere la firma criptográfica en secreto
+        const signature = await getWompiSignature(orderId, amountInCents);
+
+        // 2. Construimos la URL agregando el nuevo parámetro 'signature:integrity'
+        const publicKey = process.env.NEXT_PUBLIC_WOMPI_PUBLIC_KEY?.trim() || '';
+        const redirectUrl = `${window.location.origin}/success`; 
+
+        const params = new URLSearchParams({
+          'public-key': publicKey,
+          'currency': 'COP',
+          'amount-in-cents': amountInCents.toString(),
+          'reference': orderId, 
+          'signature:integrity': signature, // ¡Este es el pase VIP de seguridad!
+          'redirect-url': redirectUrl,
+        });
+
+        // 3. Enviamos al usuario a pagar
+        window.location.href = `https://checkout.wompi.co/p/?${params.toString()}`;
       } else {
+        // Send user to WhatsApp (Manual Flow)
+        // ... (keep the rest of your WhatsApp code exactly as it is) ...
         // Send user to WhatsApp (Manual Flow)
         const itemsList = items.map(item => {
           let text = `• ${item.quantity}x ${item.name} ($${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')})`;
