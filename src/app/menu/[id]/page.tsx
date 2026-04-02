@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Clock, MessageCircle, ShoppingBag, Zap } from 'lucide-react';
-// FIX 1: Rutas corregidas (3 niveles atrás en lugar de 4)
 import { mockProducts, ProductVariant, ProductPreference, AvailabilityType } from '../../../lib/mockData';
 import { useCartStore, CartItem } from '../../../lib/store';
 
@@ -89,9 +88,11 @@ export default function ProductDetailPage() {
   const handleBuyNow = () => {
     if (product.availabilityType === 'advisor_only') {
       const waMsg = encodeURIComponent(`Hola, quiero ayuda con el producto: ${product.name}.`);
-      window.open(`https://wa.me/573000000000?text=${waMsg}`, '_blank');
+      window.open(`https://wa.me/573173285832?text=${waMsg}`, '_blank');
       return;
     }
+
+    addItem(product, selectedVariant, selectedPreferences);
 
     const variantPart = selectedVariant ? selectedVariant.id : 'novar';
     const prefPart = selectedPreferences.length > 0 ? selectedPreferences.map(p => p.id).sort().join('-') : 'nopref';
@@ -156,7 +157,6 @@ export default function ProductDetailPage() {
               {product.variants.map((variant) => (
                 <label 
                   key={variant.id}
-                  // FIX 2: Agregado el evento onClick para poder seleccionar
                   onClick={() => setSelectedVariant(variant)}
                   className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
                     selectedVariant?.id === variant.id ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
@@ -188,7 +188,6 @@ export default function ProductDetailPage() {
                 return (
                   <label 
                     key={pref.id}
-                    // FIX 3: Agregado el evento onClick para activar el togglePreference
                     onClick={() => togglePreference(pref)}
                     className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
                       isSelected ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'

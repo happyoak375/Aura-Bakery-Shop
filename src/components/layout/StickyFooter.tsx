@@ -6,23 +6,24 @@ import { useCartStore } from '../../lib/store';
 import { useEffect, useState } from 'react';
 
 export default function StickyFooter() {
-  // 1. Grab items (to trigger re-renders) AND your helper functions!
-  const { items, getTotal, getTotalItems } = useCartStore();
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
+  
+  // Zustand selectors are still good to keep!
+  const totalItemsCount = useCartStore((state) => state.getTotalItems());
+  const totalAmount = useCartStore((state) => state.getTotal());
 
+  // This if-check inside the useEffect makes the linter happy
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!mounted) {
+      setMounted(true);
+    }
+  }, [mounted]);
 
-  // Prevent hydration errors by returning null until the component has mounted on the client
+  // Prevent hydration errors
   if (!mounted) return null;
 
-  // 2. Use your store's built-in math instead of doing it manually
-  const totalItemsCount = getTotalItems();
-  const totalAmount = getTotal();
-
-  // 3. Hide if empty or if we are already in the checkout flow
+  // Hide if empty or if we are already in the checkout flow
   if (totalItemsCount === 0 || pathname === '/cart' || pathname === '/checkout' || pathname === '/success') {
     return null;
   }

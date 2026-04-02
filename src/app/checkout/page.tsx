@@ -3,11 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MessageCircle, MapPin, Store, Clock } from 'lucide-react';
+import { ArrowLeft, MessageCircle, MapPin, Store, Clock, CreditCard } from 'lucide-react';
 import { useCartStore } from '../../lib/store';
 import { Cormorant_Garamond } from 'next/font/google';
 
-// 1. Nuevas importaciones avanzadas de Firebase
 import { collection, getDocs, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
@@ -24,6 +23,30 @@ interface TimeSlot {
   isActive: boolean;
 }
 
+// --- NEW: Wompi URL Generator ---
+const getWompiCheckoutUrl = (orderId: string, totalCop: number) => {
+  const publicKey = process.env.NEXT_PUBLIC_WOMPI_PUBLIC_KEY;
+  
+  if (!publicKey) {
+    console.error("Falta la llave pública de Wompi en .env.local");
+    return '#';
+  }
+
+  const amountInCents = totalCop * 100;
+  // Redirects back to your site after payment
+  const redirectUrl = `${window.location.origin}/success`; 
+
+  const params = new URLSearchParams({
+    'public-key': publicKey,
+    'currency': 'COP',
+    'amount-in-cents': amountInCents.toString(),
+    'reference': orderId, 
+    'redirect-url': redirectUrl,
+  });
+
+  return `https://checkout.wompi.co/p/?${params.toString()}`;
+};
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, getTotal, clearCart } = useCartStore();
@@ -37,11 +60,14 @@ export default function CheckoutPage() {
   const [neighborhood, setNeighborhood] = useState('');
   const [timeSlot, setTimeSlot] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // --- NEW: Payment Method State ---
+  const [paymentMethod, setPaymentMethod] = useState<'wompi' | 'manual'>('wompi');
 
   // Database State
   const [dbTimeSlots, setDbTimeSlots] = useState<TimeSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Nuevo estado de carga
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -75,8 +101,8 @@ export default function CheckoutPage() {
 
   if (!mounted || items.length === 0) return null;
 
-  // 2. Nuestra nueva función asíncrona con Transacciones de Firebase
-  const handleWhatsAppOrder = async (e: React.FormEvent) => {
+  // --- UPDATED: Process Order Logic ---
+  const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!timeSlot) {
@@ -87,12 +113,11 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
-      // Referencia al documento específico del horario seleccionado
       const timeSlotRef = doc(db, 'time_slots', timeSlot);
-      // Referencia para crear un nuevo documento en la colección de órdenes
+      // Generate the new order ID immediately (needed for Wompi reference)
       const newOrderRef = doc(collection(db, 'orders'));
+      const orderId = newOrderRef.id;
 
-      // 3. Ejecutamos la transacción para prevenir Race Conditions
       await runTransaction(db, async (transaction) => {
         const timeSlotDoc = await transaction.get(timeSlotRef);
         
@@ -102,17 +127,14 @@ export default function CheckoutPage() {
 
         const currentData = timeSlotDoc.data() as TimeSlot;
         
-        // Verificamos si alguien más tomó el último cupo mientras llenábamos el formulario
         if (currentData.currentOrders >= currentData.maxCapacity) {
           throw new Error("Lo sentimos, este horario se acaba de llenar.");
         }
 
-        // Si hay cupo, actualizamos el contador (+1)
         transaction.update(timeSlotRef, {
           currentOrders: currentData.currentOrders + 1
         });
 
-        // Y guardamos la orden en nuestra base de datos para ser dueños de la data
         transaction.set(newOrderRef, {
           customerName: name,
           customerPhone: phone,
@@ -123,40 +145,51 @@ export default function CheckoutPage() {
           items: items,
           totalAmount,
           notes,
-          status: 'pending',
+          paymentMethod, // Guardamos el método seleccionado
+          paymentStatus: 'pending', // Siempre inicia pendiente
           createdAt: serverTimestamp()
         });
       });
 
-      // 4. Si la transacción fue exitosa, preparamos el mensaje de WhatsApp
-      const itemsList = items.map(item => {
-        let text = `• ${item.quantity}x ${item.name} ($${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')})`;
-        if (item.selectedVariant) text += `\n  - ${item.selectedVariant.name}`;
-        if (item.selectedPreferences?.length) {
-          text += `\n  - ${item.selectedPreferences.map(p => p.name).join(', ')}`;
-        }
-        return text;
-      }).join('\n');
+      // --- NEW: Split Routing Based on Payment Method ---
+      clearCart(); // Clear cart for both methods once saved
 
-      const selectedSlotLabel = dbTimeSlots.find(s => s.id === timeSlot)?.label;
+      if (paymentMethod === 'wompi') {
+        // Send user to Wompi
+        const wompiUrl = getWompiCheckoutUrl(orderId, totalAmount);
+        window.location.href = wompiUrl;
+      } else {
+        // Send user to WhatsApp (Manual Flow)
+        const itemsList = items.map(item => {
+          let text = `• ${item.quantity}x ${item.name} ($${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')})`;
+          if (item.selectedVariant) text += `\n  - ${item.selectedVariant.name}`;
+          if (item.selectedPreferences?.length) {
+            text += `\n  - ${item.selectedPreferences.map(p => p.name).join(', ')}`;
+          }
+          return text;
+        }).join('\n');
 
-      const message = `*¡Hola Aura Bakery! Quisiera hacer un pedido:* 🥐☕\n\n` +
-        `*🕒 VENTANA DE ENTREGA:*\n${selectedSlotLabel?.toUpperCase()}\n\n` +
-        `*🛒 MI ORDEN:*\n${itemsList}\n\n` +
-        `*💰 TOTAL:* $${totalAmount.toLocaleString('es-CO')}\n\n` +
-        `*👤 MIS DATOS:*\n` +
-        `- Nombre: ${name}\n` +
-        `- Teléfono: ${phone}\n` +
-        `- Método: ${deliveryMethod === 'delivery' ? 'Envío a domicilio 🛵' : 'Recoger en tienda 🏪'}\n` +
-        (deliveryMethod === 'delivery' ? `- Dirección: ${address}\n- Barrio: ${neighborhood}\n` : '') +
-        (notes ? `\n*📝 NOTAS:* ${notes}\n` : '');
+        const selectedSlotLabel = dbTimeSlots.find(s => s.id === timeSlot)?.label;
 
-      const encodedMessage = encodeURIComponent(message);
-      const whatsappNumber = "573000000000"; 
-      window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
+        const message = `*¡Hola Aura Bakery! Quisiera hacer un pedido:* 🥐☕\n\n` +
+          `*ID:* ${orderId.substring(0,6).toUpperCase()}\n` +
+          `*🕒 VENTANA DE ENTREGA:*\n${selectedSlotLabel?.toUpperCase()}\n\n` +
+          `*🛒 MI ORDEN:*\n${itemsList}\n\n` +
+          `*💰 TOTAL:* $${totalAmount.toLocaleString('es-CO')}\n\n` +
+          `*👤 MIS DATOS:*\n` +
+          `- Nombre: ${name}\n` +
+          `- Teléfono: ${phone}\n` +
+          `- Método: ${deliveryMethod === 'delivery' ? 'Envío a domicilio 🛵' : 'Recoger en tienda 🏪'}\n` +
+          (deliveryMethod === 'delivery' ? `- Dirección: ${address}\n- Barrio: ${neighborhood}\n` : '') +
+          (notes ? `\n*📝 NOTAS:* ${notes}\n` : '');
 
-      clearCart();
-      router.push('/success');
+        const encodedMessage = encodeURIComponent(message);
+        const whatsappNumber = "573173285832"; 
+        
+        // Abre WhatsApp y redirige la página actual a success
+        window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
+        router.push('/success');
+      }
 
     } catch (error: any) {
       console.error("Transaction failed: ", error);
@@ -175,7 +208,7 @@ export default function CheckoutPage() {
       </div>
 
       <div className="max-w-xl mx-auto px-6 pt-6">
-        <form onSubmit={handleWhatsAppOrder} className="space-y-6">
+        <form onSubmit={handleProcessOrder} className="space-y-6">
           
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-4">
@@ -313,13 +346,41 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {/* --- NEW: Payment Method Selector --- */}
+          <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('wompi')}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors lowercase ${
+                paymentMethod === 'wompi' ? 'bg-[#002B56] text-white' : 'text-zinc-500 hover:bg-gray-50'
+              }`}
+            >
+              <CreditCard size={20} />
+              <span className="text-xs">tarjeta / pse</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('manual')}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors lowercase ${
+                paymentMethod === 'manual' ? 'bg-[#25D366] text-white' : 'text-zinc-500 hover:bg-gray-50'
+              }`}
+            >
+              <MessageCircle size={20} />
+              <span className="text-xs">nequi / whatsapp</span>
+            </button>
+          </div>
+
+          {/* --- UPDATED: Dynamic Submit Button --- */}
           <button 
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-[#25D366] text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-[#20bd5a] transition-all shadow-xl shadow-green-100 active:scale-95 mt-8 lowercase disabled:opacity-70 disabled:cursor-not-allowed"
+            className={`w-full text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 transition-all shadow-xl active:scale-95 mt-8 lowercase disabled:opacity-70 disabled:cursor-not-allowed ${
+              paymentMethod === 'wompi' 
+                ? 'bg-[#002B56] hover:bg-[#001f3e] shadow-blue-100' 
+                : 'bg-[#25D366] hover:bg-[#20bd5a] shadow-green-100'
+            }`}
           >
-            <MessageCircle size={22} />
-            {isSubmitting ? 'procesando...' : 'confirmar pedido'}
+            {isSubmitting ? 'procesando...' : paymentMethod === 'wompi' ? 'pagar con wompi' : 'confirmar por whatsapp'}
           </button>
         </form>
       </div>
