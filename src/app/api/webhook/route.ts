@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from 'clear../../../lib/firebase'; // Ajusta la ruta a tu config de Firebase
+import { db } from '../../../lib/firebase';
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     let concatenatedString = '';
     signature.properties.forEach((prop: string) => {
       const keys = prop.split('.'); // e.g., 'transaction.id'
-      // @ts-ignore - Dynamically accessing nested object properties
+ 
       concatenatedString += keys.reduce((obj, key) => obj[key], body);
     });
 
