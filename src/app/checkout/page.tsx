@@ -183,8 +183,7 @@ export default function CheckoutPage() {
         const whatsappNumber = "573173285832"; 
         
         // Abre WhatsApp y redirige la página actual a success
-        window.open(`https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank');
-        router.push('/success');
+        window.location.href = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
       }
 
     } catch (error: any) {
