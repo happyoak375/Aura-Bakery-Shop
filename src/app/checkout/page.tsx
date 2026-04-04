@@ -1,5 +1,14 @@
+/**
+ * @fileoverview Secure Checkout & Order Processing
+ * Handles user details collection, time slot validation via database transactions, 
+ * and routing to either the Wompi Payment Gateway or a manual WhatsApp fallback.
+ */
+
 "use client";
 
+// ==========================================
+// 1. IMPORTS
+// ==========================================
 import { getWompiSignature } from '../actions/wompi';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -8,14 +17,21 @@ import { ArrowLeft, MessageCircle, MapPin, Store, Clock, CreditCard } from 'luci
 import { useCartStore } from '../../lib/store';
 import { Cormorant_Garamond } from 'next/font/google';
 
+// Firebase Database imports specifically requiring transaction capabilities
 import { collection, getDocs, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
+// ==========================================
+// 2. FONTS & TYPES
+// ==========================================
 const cormorant = Cormorant_Garamond({ 
   subsets: ["latin"],
   weight: ['600']
 });
 
+/**
+ * Maps to the Firestore 'time_slots' collection to track available delivery capacity.
+ */
 interface TimeSlot {
   id: string;
   label: string;
@@ -24,31 +40,44 @@ interface TimeSlot {
   isActive: boolean;
 }
 
+// ==========================================
+// 3. MAIN COMPONENT
+// ==========================================
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, getTotal, clearCart } = useCartStore();
+  
+  // Prevent Hydration errors on initial load
   const [mounted, setMounted] = useState(false);
 
-  // Form State
+  // --- Customer Data State ---
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState<'delivery' | 'pickup'>('delivery');
   const [address, setAddress] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
-  const [timeSlot, setTimeSlot] = useState('');
   const [notes, setNotes] = useState('');
   
-  // --- NEW: Payment Method State ---
+  // --- Operational State ---
+  const [timeSlot, setTimeSlot] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'wompi' | 'manual'>('wompi');
 
-  // Database State
+  // --- Database & Loading State ---
   const [dbTimeSlots, setDbTimeSlots] = useState<TimeSlot[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ==========================================
+  // 4. EFFECTS & INITIALIZATION
+  // ==========================================
+  
   useEffect(() => {
     setMounted(true);
     
+    /**
+     * Fetches the current capacity of delivery windows directly from Firestore.
+     * We do this on mount so the user sees live availability before trying to check out.
+     */
     const fetchTimeSlots = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, 'time_slots'));
@@ -70,6 +99,7 @@ export default function CheckoutPage() {
 
   const totalAmount = getTotal();
 
+  // UX Failsafe: If the cart is empty (e.g., they reloaded the page after paying), kick them out.
   useEffect(() => {
     if (mounted && items.length === 0) {
       router.push('/menu');
@@ -77,6 +107,11 @@ export default function CheckoutPage() {
   }, [mounted, items, router]);
 
   if (!mounted || items.length === 0) return null;
+
+
+  // ==========================================
+  // 5. TRANSACTION & ORDER LOGIC
+  // ==========================================
 
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,10 +125,18 @@ export default function CheckoutPage() {
 
     try {
       const timeSlotRef = doc(db, 'time_slots', timeSlot);
-      // Generate the new order ID immediately (needed for Wompi reference)
+      
+      // Generate a unique order ID locally before writing it. Wompi needs this reference ID.
       const newOrderRef = doc(collection(db, 'orders'));
       const orderId = newOrderRef.id;
 
+      /**
+       * FIRESTORE TRANSACTION (CRITICAL ARCHITECTURE):
+       * We use a transaction because checking capacity and placing an order must happen 
+       * atomically. If we just did a standard `get` and `set`, two users could check 
+       * out at the same time, both see "1 slot left", and accidentally double-book the bakery.
+       * A transaction locks the document, checks it, writes it, and unlocks it.
+       */
       await runTransaction(db, async (transaction) => {
         const timeSlotDoc = await transaction.get(timeSlotRef);
         
@@ -103,14 +146,17 @@ export default function CheckoutPage() {
 
         const currentData = timeSlotDoc.data() as TimeSlot;
         
+        // Final sanity check right before writing to the database
         if (currentData.currentOrders >= currentData.maxCapacity) {
           throw new Error("Lo sentimos, este horario se acaba de llenar.");
         }
 
+        // 1. Increment the slot capacity
         transaction.update(timeSlotRef, {
           currentOrders: currentData.currentOrders + 1
         });
 
+        // 2. Save the official order payload
         transaction.set(newOrderRef, {
           customerName: name,
           customerPhone: phone,
@@ -121,41 +167,45 @@ export default function CheckoutPage() {
           items: items,
           totalAmount,
           notes,
-          paymentMethod, // Guardamos el método seleccionado
-          paymentStatus: 'pending', // Siempre inicia pendiente
+          paymentMethod, 
+          paymentStatus: 'pending', // Webhook or Admin will change this later
           createdAt: serverTimestamp()
         });
       });
 
-      // --- NEW: Split Routing Based on Payment Method ---
-      clearCart(); // Clear cart for both methods once saved
+      // Transaction succeeded! We can safely clear the cart.
+      clearCart(); 
 
-     if (paymentMethod === 'wompi') {
-        // Convert to cents safely
+      // ==========================================
+      // 6. PAYMENT GATEWAY ROUTING
+      // ==========================================
+      
+      if (paymentMethod === 'wompi') {
+        // Wompi strictly requires prices in cents, with no decimals
         const amountInCents = Math.round(totalAmount * 100);
         
-        // 1. Pedimos al servidor que genere la firma criptográfica en secreto
+        // 1. Ask the secure server environment to sign the payload
         const signature = await getWompiSignature(orderId, amountInCents);
 
-        // 2. Construimos la URL agregando el nuevo parámetro 'signature:integrity'
         const publicKey = process.env.NEXT_PUBLIC_WOMPI_PUBLIC_KEY?.trim() || '';
         const redirectUrl = `${window.location.origin}/success`; 
 
+        // 2. Construct the URL parameters exactly as Wompi's API demands
         const params = new URLSearchParams({
           'public-key': publicKey,
           'currency': 'COP',
           'amount-in-cents': amountInCents.toString(),
           'reference': orderId, 
-          'signature:integrity': signature, // ¡Este es el pase VIP de seguridad!
+          'signature:integrity': signature, // The cryptographic VIP pass
           'redirect-url': redirectUrl,
         });
 
-        // 3. Enviamos al usuario a pagar
+        // 3. Redirect the browser completely out of our app to Wompi's hosted checkout
         window.location.href = `https://checkout.wompi.co/p/?${params.toString()}`;
+      
       } else {
-        // Send user to WhatsApp (Manual Flow)
-        // ... (keep the rest of your WhatsApp code exactly as it is) ...
-        // Send user to WhatsApp (Manual Flow)
+        // --- MANUAL FALLBACK (WHATSAPP) ---
+        // Construct a clean, readable receipt for the bakery staff
         const itemsList = items.map(item => {
           let text = `• ${item.quantity}x ${item.name} ($${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')})`;
           if (item.selectedVariant) text += `\n  - ${item.selectedVariant.name}`;
@@ -179,22 +229,30 @@ export default function CheckoutPage() {
           (deliveryMethod === 'delivery' ? `- Dirección: ${address}\n- Barrio: ${neighborhood}\n` : '') +
           (notes ? `\n*📝 NOTAS:* ${notes}\n` : '');
 
+        // Encode the string so it can safely travel through a URL
         const encodedMessage = encodeURIComponent(message);
+        
+        // IMPORTANT: The WhatsApp number should ideally be pulled from a config file
         const whatsappNumber = "573173285832"; 
         
-        // Abre WhatsApp y redirige la página actual a success
+        // Redirect to WhatsApp Deep Link
         window.location.href = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
       }
 
     } catch (error: any) {
       console.error("Transaction failed: ", error);
       alert(error.message || "Hubo un error al procesar tu pedido. Por favor intenta de nuevo.");
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Re-enable the button so they can try again
     }
   };
 
+  // ==========================================
+  // 7. RENDER
+  // ==========================================
   return (
     <main className="min-h-screen bg-gray-50 pb-32 font-sans">
+      
+      {/* Header */}
       <div className="bg-white sticky top-0 z-20 border-b border-gray-100 px-6 py-4 flex items-center gap-4">
         <Link href="/cart" className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
           <ArrowLeft size={24} className="text-zinc-900" />
@@ -205,6 +263,7 @@ export default function CheckoutPage() {
       <div className="max-w-xl mx-auto px-6 pt-6">
         <form onSubmit={handleProcessOrder} className="space-y-6">
           
+          {/* Time Slot Selector */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-4">
               <Clock size={20} className="text-zinc-900" />
@@ -255,6 +314,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {/* Delivery Method Toggle */}
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
             <button
               type="button"
@@ -276,6 +336,7 @@ export default function CheckoutPage() {
             </button>
           </div>
 
+          {/* User Details Form */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
             <h2 className="font-bold text-lg text-zinc-900 mb-2 lowercase">tus datos</h2>
             
@@ -303,6 +364,7 @@ export default function CheckoutPage() {
               />
             </div>
 
+            {/* Conditionally render address fields only if 'delivery' is selected */}
             {deliveryMethod === 'delivery' && (
               <div className="space-y-4 pt-2">
                 <div>
@@ -341,7 +403,7 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* --- NEW: Payment Method Selector --- */}
+          {/* Payment Method Selector */}
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
             <button
               type="button"
@@ -365,7 +427,7 @@ export default function CheckoutPage() {
             </button>
           </div>
 
-          {/* --- UPDATED: Dynamic Submit Button --- */}
+          {/* Dynamic Submit Button */}
           <button 
             type="submit"
             disabled={isSubmitting}

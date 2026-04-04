@@ -1,64 +1,123 @@
-import { create } from 'zustand';
-import { Product, ProductVariant, ProductPreference, AvailabilityType } from './mockData';
+/**
+ * @fileoverview Global State Management (Zustand)
+ * Manages the shopping cart, direct purchase flows (Buy Now), and dynamic
+ * calculations for pricing and delivery availability.
+ */
 
-// --- TYPES ---
+import { create } from "zustand";
+import {
+  Product,
+  ProductVariant,
+  ProductPreference,
+  AvailabilityType,
+} from "./mockData";
 
+// ==========================================
+// 1. TYPES & INTERFACES
+// ==========================================
+
+/**
+ * Represents an item as it exists inside the shopping cart.
+ * Extends the base Product model with specific user selections and calculated totals.
+ */
 export interface CartItem extends Product {
-  cartItemId: string; // Unique hash: prodId + selectedVariantId + preferenceIds
+  /** * Unique hash generated from prodId + selectedVariantId + preferenceIds.
+   * WHY WE NEED THIS: If a user adds "Pasteis (Arequipe)" and "Pasteis (Bocadillo)",
+   * they share the same Product ID but must appear as separate line items in the cart.
+   */
+  cartItemId: string;
   selectedVariant: ProductVariant | null;
   selectedPreferences: ProductPreference[];
-  calculatedPrice: number; // basePrice + variant_delta + sum(pref_delta)
+  /** The final price for one unit of this specific combination */
+  calculatedPrice: number;
   quantity: number;
 }
 
+/**
+ * The Zustand Store interface defining all state variables and actions.
+ */
 interface CartStore {
-  // Main Cart State
+  // --- State ---
   items: CartItem[];
-  
-  // Direct Purchase State (Sec. 8: Camino 1 compra directa)
-  directPurchaseItem: CartItem | null; 
-  setDirectPurchaseItem: (item: CartItem | null) => void;
+  /** * Stores a single item temporarily when the user clicks "Buy Now" (Compra Directa).
+   * This bypasses the main cart so their existing cart items aren't overwritten.
+   */
+  directPurchaseItem: CartItem | null;
 
-  // Actions
-  addItem: (product: Product, selectedVariant: ProductVariant | null, selectedPreferences: ProductPreference[]) => void;
+  // --- Actions ---
+  setDirectPurchaseItem: (item: CartItem | null) => void;
+  addItem: (
+    product: Product,
+    selectedVariant: ProductVariant | null,
+    selectedPreferences: ProductPreference[],
+  ) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
 
-  // Selectors/Helpers
+  // --- Selectors ---
   getTotal: (isDirectPurchase?: boolean) => number;
   getTotalItems: (isDirectPurchase?: boolean) => number;
-  // Sec 6: Get most restrictive availability type (asap < 24h < 48h)
-  getMostRestrictiveAvailability: (isDirectPurchase?: boolean) => AvailabilityType;
+  getMostRestrictiveAvailability: (
+    isDirectPurchase?: boolean,
+  ) => AvailabilityType;
 }
 
-// --- HELPER FUNCTIONS ---
+// ==========================================
+// 2. HELPER FUNCTIONS
+// ==========================================
 
-// Unique ID based on choices
-const generateCartItemId = (productId: string, variant: ProductVariant | null, prefs: ProductPreference[]): string => {
-  const variantPart = variant ? variant.id : 'novar';
-  // Sort prefs to ensure ID consistency
-  const prefPart = prefs.length > 0 ? prefs.map(p => p.id).sort().join('-') : 'nopref';
+/**
+ * Generates a unique identifier for a specific product + variant + preference combination.
+ */
+const generateCartItemId = (
+  productId: string,
+  variant: ProductVariant | null,
+  prefs: ProductPreference[],
+): string => {
+  const variantPart = variant ? variant.id : "novar";
+
+  // We sort the preferences before joining to guarantee that selecting
+  // [Arequipe, Fresa] generates the exact same hash as [Fresa, Arequipe].
+  const prefPart =
+    prefs.length > 0
+      ? prefs
+          .map((p) => p.id)
+          .sort()
+          .join("-")
+      : "nopref";
+
   return `${productId}_${variantPart}_${prefPart}`;
 };
 
-// Calculate final line-item price
-const calculateLinePrice = (product: Product, variant: ProductVariant | null, prefs: ProductPreference[]): number => {
+/**
+ * Calculates the exact price of a product by adding the base price to any variant/preference deltas.
+ */
+const calculateLinePrice = (
+  product: Product,
+  variant: ProductVariant | null,
+  prefs: ProductPreference[],
+): number => {
   const variantDelta = variant ? variant.price_delta : 0;
   const prefsDelta = prefs.reduce((sum, p) => sum + p.price_delta, 0);
   return product.basePrice + variantDelta + prefsDelta;
 };
 
-// Sec 6 logic: Mixed order restriction calculation
-const calculateMostRestrictiveAvailability = (items: CartItem[]): AvailabilityType => {
-  if (items.length === 0) return 'asap';
-  
-  // Weights: higher means more restrictive
+/**
+ * Determines the longest lead time required for an entire order.
+ * If a cart has an "asap" cookie and a "48h" entremet, the whole order becomes "48h".
+ */
+const calculateMostRestrictiveAvailability = (
+  items: CartItem[],
+): AvailabilityType => {
+  if (items.length === 0) return "asap";
+
+  // Assign numeric weights to easily compare restrictiveness
   const weights: Record<AvailabilityType, number> = {
-    'asap': 0,
-    '24h': 1,
-    '48h': 2,
-    'advisor_only': 3
+    asap: 0,
+    "24h": 1,
+    "48h": 2,
+    advisor_only: 3,
   };
 
   let highestWeightItem = items[0];
@@ -75,90 +134,107 @@ const calculateMostRestrictiveAvailability = (items: CartItem[]): AvailabilityTy
   return highestWeightItem.availabilityType;
 };
 
-// --- STORE IMPLEMENTATION ---
+// ==========================================
+// 3. STORE IMPLEMENTATION
+// ==========================================
 
 export const useCartStore = create<CartStore>((set, get) => ({
-  // State initialization
+  // --- Initial State ---
   items: [],
   directPurchaseItem: null,
 
-  // Direct purchase state action
+  // --- State Mutators ---
   setDirectPurchaseItem: (item) => set({ directPurchaseItem: item }),
 
-  // ADD ITEM Action (Updated to handle variants/preferences)
   addItem: (product, selectedVariant, selectedPreferences) => {
     const { items } = get();
-    
-    // 1. Generate unique ID for this specific combination
-    const cartItemId = generateCartItemId(product.id, selectedVariant, selectedPreferences);
-    
-    // 2. Calculate the correct price for this combination
-    const calculatedPrice = calculateLinePrice(product, selectedVariant, selectedPreferences);
 
+    // 1. Generate unique ID for this specific combination
+    const cartItemId = generateCartItemId(
+      product.id,
+      selectedVariant,
+      selectedPreferences,
+    );
+
+    // 2. Calculate the correct unit price
+    const calculatedPrice = calculateLinePrice(
+      product,
+      selectedVariant,
+      selectedPreferences,
+    );
+
+    // 3. Check if this exact combination is already in the cart
     const existingItem = items.find((item) => item.cartItemId === cartItemId);
 
     if (existingItem) {
-      // If same combination exists, just increase quantity
+      // If it exists, just bump the quantity to prevent duplicate rows in the UI
       set({
         items: items.map((item) =>
-          item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + 1 } : item
+          item.cartItemId === cartItemId
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
         ),
       });
     } else {
-      // Create new unique CartItem
+      // Otherwise, create a brand new line item
       const newItem: CartItem = {
-        ...product, // Inherits basic product data
+        ...product, // Inherit base product data (name, image, etc.)
         cartItemId,
         selectedVariant,
         selectedPreferences,
-        calculatedPrice, // Important for checkout
+        calculatedPrice,
         quantity: 1,
       };
       set({ items: [...items, newItem] });
     }
   },
 
-  // Use unique cartItemId for removal/updates
   removeItem: (cartItemId) => {
-    set({ items: get().items.filter((item) => item.cartItemId !== cartItemId) });
+    set({
+      items: get().items.filter((item) => item.cartItemId !== cartItemId),
+    });
   },
 
   updateQuantity: (cartItemId, quantity) => {
+    // Failsafe: If a user clicks minus down to 0, completely remove the item.
     if (quantity <= 0) {
       get().removeItem(cartItemId);
       return;
     }
     set({
       items: get().items.map((item) =>
-        item.cartItemId === cartItemId ? { ...item, quantity } : item
+        item.cartItemId === cartItemId ? { ...item, quantity } : item,
       ),
     });
   },
 
   clearCart: () => set({ items: [] }),
 
-  // Dynamic Total Calculation
+  // --- Selectors (Data Retrieval) ---
+
   getTotal: (isDirectPurchase = false) => {
-    // Section 8: Direct purchase flow doesn't use the main cart items
+    // If user is in the "Buy Now" flow, calculate the total based ONLY on that one item.
     if (isDirectPurchase && get().directPurchaseItem) {
-        const item = get().directPurchaseItem!;
-        return item.calculatedPrice * item.quantity;
+      const item = get().directPurchaseItem!;
+      return item.calculatedPrice * item.quantity;
     }
-    // Main cart flow
-    return get().items.reduce((total, item) => total + (item.calculatedPrice * item.quantity), 0);
+    // Standard cart flow: Sum up (price * quantity) for every item.
+    return get().items.reduce(
+      (total, item) => total + item.calculatedPrice * item.quantity,
+      0,
+    );
   },
 
   getTotalItems: (isDirectPurchase = false) => {
     if (isDirectPurchase && get().directPurchaseItem) {
-        return get().directPurchaseItem!.quantity;
+      return get().directPurchaseItem!.quantity;
     }
     return get().items.reduce((total, item) => total + item.quantity, 0);
   },
 
-  // Sec 6 Mixed Orders Selector
   getMostRestrictiveAvailability: (isDirectPurchase = false) => {
     if (isDirectPurchase && get().directPurchaseItem) {
-        return get().directPurchaseItem!.availabilityType;
+      return get().directPurchaseItem!.availabilityType;
     }
     return calculateMostRestrictiveAvailability(get().items);
   },

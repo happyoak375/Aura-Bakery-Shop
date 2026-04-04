@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Shopping Cart Page
+ * Displays the user's selected items, calculates the subtotal, and provides 
+ * quantity controls. It also handles the "Empty Cart" fallback state to guide 
+ * users back to the catalog.
+ */
+
 "use client";
 
 import Link from 'next/link';
@@ -5,12 +12,21 @@ import { ArrowLeft, Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '../../lib/store';
 
 export default function CartPage() {
-  // Destructuring exactly what we need from your perfectly typed store
+  /**
+   * STATE SUBSCRIPTION:
+   * We destructure exactly the properties and methods we need from Zustand.
+   * By using the getTotal() method from the store, we ensure the UI always 
+   * displays the mathematically correct sum, preventing front-end pricing bugs.
+   */
   const { items, removeItem, updateQuantity, getTotal } = useCartStore();
-
-  // Using your built-in store method!
   const cartTotal = getTotal();
 
+  // ==========================================
+  // 1. EMPTY STATE RENDER
+  // ==========================================
+  
+  // UX Best Practice: Never leave the user at a dead end. If the cart is empty, 
+  // provide a clear call-to-action (CTA) to send them back to the menu.
   if (items.length === 0) {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
@@ -31,9 +47,13 @@ export default function CartPage() {
     );
   }
 
+  // ==========================================
+  // 2. ACTIVE CART RENDER
+  // ==========================================
   return (
     <main className="min-h-screen bg-white pb-32">
-      {/* Header */}
+      
+      {/* --- TOP HEADER --- */}
       <div className="bg-white sticky top-0 z-20 border-b border-gray-100 px-6 py-4 flex items-center gap-4">
         <Link href="/menu" className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
           <ArrowLeft size={24} className="text-zinc-900" />
@@ -42,12 +62,22 @@ export default function CartPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-6 pt-6">
-        {/* Cart Items List */}
+        
+        {/* --- ITEMS LIST --- */}
         <div className="space-y-6 mb-8">
           {items.map((item) => (
+            /**
+             * UNIQUE KEY MAPPING:
+             * We use the `cartItemId` (the hash we built in the store) as the React key. 
+             * This ensures React renders the list efficiently and doesn't confuse 
+             * two identical products that have different flavor preferences.
+             */
             <div key={item.cartItemId} className="flex gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
               
-              {/* Image Thumbnail */}
+              {/* Image Thumbnail: 
+                  Using inline background-image is a clean CSS trick to ensure the 
+                  image perfectly covers the square without distorting the aspect ratio. 
+              */}
               <div 
                 className="w-20 h-20 bg-cover bg-center rounded-xl shrink-0 bg-gray-200"
                 style={{ backgroundImage: `url(${item.imageUrl})` }}
@@ -80,13 +110,17 @@ export default function CartPage() {
                   </span>
                   
                   <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm">
+                    {/* Decrease Quantity (Zustand automatically removes if it hits 0) */}
                     <button 
                       onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
                       className="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-black hover:bg-gray-100 rounded-full transition-colors"
                     >
                       <Minus size={14} />
                     </button>
+                    
                     <span className="font-bold text-sm w-4 text-center">{item.quantity}</span>
+                    
+                    {/* Increase Quantity */}
                     <button 
                       onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
                       className="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-black hover:bg-gray-100 rounded-full transition-colors"
@@ -100,7 +134,7 @@ export default function CartPage() {
           ))}
         </div>
 
-        {/* Order Summary */}
+        {/* --- ORDER SUMMARY --- */}
         <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8">
           <h3 className="font-bold text-lg text-zinc-900 mb-4">Resumen del pedido</h3>
           <div className="flex justify-between font-extrabold text-xl text-zinc-900 mt-2 pt-4 border-t border-gray-200">
@@ -110,7 +144,10 @@ export default function CartPage() {
         </div>
       </div>
 
-      {/* Sticky Checkout Button */}
+      {/* --- STICKY CHECKOUT BUTTON --- 
+          Anchored to the bottom of the screen so the user doesn't have to 
+          scroll all the way down a long list of items to pay.
+      */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-4 pb-6 z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
         <div className="max-w-2xl mx-auto">
           <Link 

@@ -1,8 +1,18 @@
+/**
+ * @fileoverview Firebase Client SDK Initialization
+ * This file configures and exports the core Firebase services used throughout the frontend application.
+ * It strictly uses environment variables to prevent exposing raw credentials in the source code.
+ */
+
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { getAuth } from "firebase/auth"; //
+import { getAuth } from "firebase/auth";
 
+/**
+ * Firebase project configuration object.
+ * Pulled securely from .env.local during the build process.
+ */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -13,17 +23,31 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase only if it hasn't been initialized already (important for Next.js)
+/**
+ * Initialize Firebase App (Singleton Pattern)
+ * Next.js hot-reloads the development server frequently. Checking getApps().length
+ * ensures we don't accidentally initialize multiple identical instances of Firebase,
+ * which would cause a memory leak and crash the app.
+ */
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore (The database for our Time Slots)
+// Initialize Core Services
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// Initialize Analytics safely (only runs on the client, not the server)
+/**
+ * Initialize Firebase Analytics safely.
+ * Analytics requires the browser's `window` object to track page views.
+ * The `typeof window !== "undefined"` check prevents Next.js from throwing
+ * errors during Server-Side Rendering (SSR).
+ */
 let analytics;
 if (typeof window !== "undefined") {
-  isSupported().then((yes) => yes && (analytics = getAnalytics(app)));
+  isSupported().then((isSupported) => {
+    if (isSupported) {
+      analytics = getAnalytics(app);
+    }
+  });
 }
 
 export { app, db, analytics, auth };

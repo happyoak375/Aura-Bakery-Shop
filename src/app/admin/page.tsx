@@ -1,3 +1,10 @@
+/**
+ * @fileoverview Main Admin Dashboard Component
+ * Serves as the central command hub for the bakery. It includes a real-time feed 
+ * of incoming orders, a time-slot capacity manager, and a secure portal for 
+ * creating new employee accounts without disrupting the current admin session.
+ */
+
 'use client';
 
 // ==========================================
@@ -13,7 +20,7 @@ import { auth, db } from '../../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
-// Firebase "Secondary App" SDK imports for creating users safely
+// Firebase "Secondary App" SDK imports for safely creating users
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from 'firebase/auth';
 
@@ -51,7 +58,9 @@ export default function AdminDashboard() {
   // ==========================================
 
   /**
-   * SECURITY WRAPPER: Listens for authentication state changes.
+   * SECURITY WRAPPER: Route Protection
+   * Listens for Firebase auth state changes. If a user tries to manually type 
+   * `/admin` into the URL bar without being logged in, this kicks them back to `/admin/login`.
    */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -61,16 +70,20 @@ export default function AdminDashboard() {
         setIsCheckingAuth(false);
       }
     });
+    // Cleanup listener on unmount to prevent memory leaks
     return () => unsubscribe();
   }, [router]);
 
   /**
-   * LIVE DATABASE FEED: Listens to both Orders and Time Slots in real-time.
+   * LIVE DATABASE FEED: Firestore Real-time Listeners
+   * Uses `onSnapshot` instead of standard `getDocs`. This creates a persistent WebSocket 
+   * connection to the database. The UI will instantly re-render the moment a customer 
+   * places an order or a time slot capacity changes.
    */
   useEffect(() => {
-    if (isCheckingAuth) return;
+    if (isCheckingAuth) return; // Wait until we verify the admin is logged in
 
-    // Listen to Orders
+    // 1. Subscribing to Orders (Sorted newest first)
     const qOrders = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsubscribeOrders = onSnapshot(qOrders, (querySnapshot) => {
       const ordersData = querySnapshot.docs.map(doc => ({
@@ -81,19 +94,19 @@ export default function AdminDashboard() {
       setIsLoadingOrders(false);
     });
 
-    // Listen to Time Slots
+    // 2. Subscribing to Time Slots
     const qSlots = query(collection(db, 'time_slots'));
     const unsubscribeSlots = onSnapshot(qSlots, (querySnapshot) => {
       const slotsData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      // Sort them alphabetically or by ID so they always appear in order
+      // Sort slots alphabetically/by ID so the timeline renders in chronological order
       slotsData.sort((a, b) => a.id.localeCompare(b.id));
       setTimeSlots(slotsData);
     });
 
-    // Cleanup both listeners on unmount
+    // Disconnect from the database when the admin closes the tab or navigates away
     return () => {
       unsubscribeOrders();
       unsubscribeSlots();
@@ -105,27 +118,43 @@ export default function AdminDashboard() {
   // 5. ACTION HANDLERS
   // ==========================================
 
+  /**
+   * Terminates the current admin session.
+   */
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/admin/login');
   };
 
+  /**
+   * ARCHITECTURE NOTE: The "Secondary App" Workaround
+   * By default, Firebase's `createUserWithEmailAndPassword` automatically logs the 
+   * newly created user in. If we used the main `auth` instance, creating a team 
+   * member would instantly kick the Admin out of their dashboard.
+   * * To fix this, we spin up an isolated, temporary secondary Firebase instance just 
+   * to create the account, and then immediately destroy it.
+   */
   const handleCreateTeamMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreatingUser(true);
     setTeamMessage({ type: '', text: '' });
 
     try {
+      // 1. Steal the configuration keys from the main app
       const mainApp = getApp();
       const firebaseConfig = mainApp.options;
 
+      // 2. Initialize or retrieve the isolated secondary app
       const secondaryAppName = 'SecondaryApp';
       const secondaryApp = getApps().find(app => app.name === secondaryAppName) 
         || initializeApp(firebaseConfig, secondaryAppName);
       
       const secondaryAuth = getAuth(secondaryApp);
 
+      // 3. Create the user within the isolated instance
       await createUserWithEmailAndPassword(secondaryAuth, newEmail, newPassword);
+      
+      // 4. Terminate the isolated session to prevent ghost logins
       await signOutSecondary(secondaryAuth);
 
       setTeamMessage({ type: 'success', text: '¡Cuenta de empleado creada exitosamente!' });
@@ -140,6 +169,9 @@ export default function AdminDashboard() {
     }
   };
   
+  /**
+   * Updates the kitchen progression state of an order.
+   */
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       const orderRef = doc(db, 'orders', orderId);
@@ -150,7 +182,11 @@ export default function AdminDashboard() {
     }
   };
 
+  /**
+   * Manual override for WhatsApp/Cash orders. Switches pending status to paid.
+   */
   const handleMarkAsPaid = async (orderId: string) => {
+    // Failsafe confirmation to prevent accidental clicks by staff
     if (!window.confirm('¿Confirmar que este pedido ya fue pagado?')) return;
     try {
       const orderRef = doc(db, 'orders', orderId);
@@ -161,7 +197,9 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- NEW: TIME SLOT HANDLERS ---
+  /**
+   * Toggles a time slot on or off, instantly removing it from the public checkout.
+   */
   const handleToggleTimeSlot = async (slotId: string, currentStatus: boolean) => {
     try {
       await updateDoc(doc(db, 'time_slots', slotId), { isActive: !currentStatus });
@@ -170,6 +208,9 @@ export default function AdminDashboard() {
     }
   };
 
+  /**
+   * Clears the current orders count back to 0. Used at the start of a new day.
+   */
   const handleResetTimeSlot = async (slotId: string) => {
     if (!window.confirm('¿Estás seguro de reiniciar los pedidos a 0 para este horario?')) return;
     try {
@@ -183,6 +224,8 @@ export default function AdminDashboard() {
   // 6. RENDER HELPERS
   // ==========================================
 
+  // Prevents the dashboard UI from flashing on screen for a split second 
+  // before the router kicks unauthorized users out.
   if (isCheckingAuth) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 lowercase text-zinc-400">verificando credenciales...</div>;
   }
@@ -234,7 +277,7 @@ export default function AdminDashboard() {
           {activeTab === 'orders' ? (
             <div>
               
-              {/* --- NEW: TIME SLOTS MANAGER UI --- */}
+              {/* --- TIME SLOTS MANAGER UI --- */}
               <div className="mb-10 pb-8 border-b border-gray-100">
                 <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
                   <Clock size={20} /> gestión de horarios
@@ -361,7 +404,7 @@ export default function AdminDashboard() {
               )}
             </div>
 
-          /* TEAM TAB */
+          /* --- TEAM TAB --- */
           ) : (
             <div className="max-w-md">
               <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
