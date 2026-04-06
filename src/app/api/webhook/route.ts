@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     signature.properties.forEach((prop: string) => {
       const keys = prop.split("."); // e.g., 'transaction.id'
 
-      // Traverse the nested body object to extract the actual value for the hash
+      // Traverse the nested data object to extract the actual value for the hash
       concatenatedString += keys.reduce((obj, key) => obj[key], body);
     });
 
