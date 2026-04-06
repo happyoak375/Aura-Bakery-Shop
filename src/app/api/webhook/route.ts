@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       const keys = prop.split("."); // e.g., 'transaction.id'
 
       // Traverse the nested data object to extract the actual value for the hash
-      concatenatedString += keys.reduce((obj, key) => obj[key], body);
+      concatenatedString += keys.reduce((obj, key) => obj[key], data);
     });
 
     // Append timestamp and secret to the end of the string as required by Wompi docs
