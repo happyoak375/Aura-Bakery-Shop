@@ -46,20 +46,20 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.className}>
-        
+
         {/* PERSISTENT HEADER: Remains at the top of the screen across all page navigations */}
         <Header />
-        
+
         {/* PAGE CONTENT: Next.js injects the specific route's page component here */}
         {children}
-        
+
         {/* PERSISTENT FOOTER: 
             Since the hydration logic (checking if the cart exists) is handled securely 
             inside the StickyFooter component itself, we can use a standard import 
             here without breaking Server-Side Rendering (SSR).
         */}
         <StickyFooter />
-        
+
       </body>
     </html>
   );

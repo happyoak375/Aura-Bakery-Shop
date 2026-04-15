@@ -44,17 +44,26 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-32 font-sans">
-      
+
+
       {/* ==========================================
-          HERO SECTION
+          HERO SECTION (Optimized)
           ========================================== */}
-      <section 
-        className="relative pt-32 pb-36 px-6 bg-cover bg-center overflow-hidden"
-        style={{ backgroundImage: "url('/images/aura-pasteis-de-nata-banner.png')" }}
-      >
-        {/* Dark overlay to ensure text remains readable regardless of the background image */}
+      <section className="relative pt-32 pb-36 px-6 overflow-hidden min-h-[60vh] flex items-center">
+        {/* Next.js Image Optimization for the Background */}
+        <Image
+          src="/images/aura-pasteis-de-nata-banner.png"
+          alt="Aura Bakery Hero Background"
+          fill
+          priority 
+          className="object-cover"
+          quality={80} 
+        />
+
+        {/* Dark overlay to ensure text remains readable */}
         <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" />
 
+        {/* CONTENEDOR DE TEXTO: Todo debe estar dentro de este div relativo con z-10 */}
         <div className="relative z-10 max-w-4xl mx-auto text-center">
           
           {/* Main Title */}
@@ -63,7 +72,7 @@ export default function Home() {
           </h1>
           
           {/* Subtitle / Value Proposition */}
-          <p className="text-xl md:text-2xl text-white/90 font-light mb-2 max-w-lg mx-auto leading-relaxed drop-shadow-md">
+          <p className="hidden text-xl md:text-2xl text-white/90 font-light mb-2 max-w-lg mx-auto leading-relaxed drop-shadow-md">
             Postres por capas. Hechos bajo pedido.
           </p>
 
@@ -78,7 +87,7 @@ export default function Home() {
           >
             ordenar ahora
           </Link>
-        </div>
+        </div> {/* <--- El cierre estaba antes de tiempo, ahora protege a todos los elementos */}
       </section>
 
       {/* ==========================================

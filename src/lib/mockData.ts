@@ -107,24 +107,19 @@ export const mockProducts: Product[] = [
     id: "prod_pasteis",
     name: "Pasteis de Nata",
     description:
-      "Hojaldre crujiente relleno con una crema suave de vainilla y caramelo tostado.",
+      "Clásico de Portugal, Hojaldre crujiente con crema de vainilla y caramelo tostado.",
     basePrice: 8000,
-    imageUrl: "/products/pasteis-de-nata.png",
+    imageUrl: "/products/pasteis-de-nata.jpg",
     isActive: true,
     category: "Clásicos del Mundo",
     availabilityType: "asap",
     variants: [
       { id: "v_1", name: "1 Unidad", price_delta: 0 },
-      { id: "v_2", name: "2 Unidades", price_delta: 7000 }, // Total: 15000
-      { id: "v_6", name: "6 Unidades", price_delta: 40000 }, // Total: 48000
-      { id: "v_box", name: "Caja Mini Pasteis (20 unds)", price_delta: 72000 }, // Total: 80000
+      { id: "v_2", name: "2 Unidades", price_delta: 7000 },
+      { id: "v_6", name: "6 Unidades", price_delta: 40000 },
+      { id: "v_box", name: "Caja Mini Pasteis (20 unds)", price_delta: 72000 },
     ],
-    preferences: [
-      { id: "p_boca", name: "Sabor: Bocadillo", price_delta: 0 },
-      { id: "p_areq", name: "Sabor: Arequipe", price_delta: 0 },
-      { id: "p_rojos", name: "Sabor: Frutos Rojos", price_delta: 0 },
-      { id: "p_ama", name: "Sabor: Frutos Amarillos", price_delta: 0 },
-    ],
+    preferences: [],
     delivery_allowed: true,
     pickup_allowed: true,
   },
@@ -132,9 +127,9 @@ export const mockProducts: Product[] = [
     id: "prod_selva",
     name: "Selva Negra",
     description:
-      "Bizcocho de chocolate, crema y notas de cereza. Un clásico reinterpretado.",
+      "Bizcocho de chocolate con capas de crema y cerezas, decorado con virutas de chocolate.",
     basePrice: 14000,
-    imageUrl: "/products/selva-negra.png",
+    imageUrl: "/products/selva-negra.jpg",
     isActive: true,
     category: "Clásicos del Mundo",
     availabilityType: "24h",
@@ -149,9 +144,9 @@ export const mockProducts: Product[] = [
   {
     id: "prod_tiramisu",
     name: "Tiramisú Clásico",
-    description: "Capas de café, crema mascarpone suave y cacao intenso.",
+    description: "Tiramisu Clásico con capas de café, mascarpone y cacao.",
     basePrice: 16000,
-    imageUrl: "/products/tiramisu.png",
+    imageUrl: "/products/tiramisu.jpg",
     isActive: true,
     category: "Clásicos del Mundo",
     availabilityType: "24h",
@@ -167,9 +162,9 @@ export const mockProducts: Product[] = [
     id: "prod_vasca",
     name: "Tarta Vasca",
     description:
-      "Cheesecake horneado, caracterizado por ser cremoso por dentro y caramelizado por fuera.",
+      "Tarta vasca personal cremosa con exterior caramelizado. Ideal para los amantes del dulce consciente.",
     basePrice: 16000,
-    imageUrl: "/products/tarta-vasca.png",
+    imageUrl: "/products/tarta-vasca.jpg",
     isActive: true,
     category: "Clásicos del Mundo",
     availabilityType: "24h",
@@ -188,9 +183,9 @@ export const mockProducts: Product[] = [
     id: "prod_mara_cloud",
     name: "Maracuyá Cloud",
     description:
-      "Una mousse ligera de maracuyá estructurada con capas y una base crocante.",
+      "Entremet individual por capas, con mousse de maracuyá, centro frutal y base de bizcocho.",
     basePrice: 20000,
-    imageUrl: "/products/entremet-passion.png",
+    imageUrl: "/products/entremet-passion.jpg",
     isActive: true,
     category: "Entremets",
     availabilityType: "48h",
@@ -201,11 +196,11 @@ export const mockProducts: Product[] = [
   },
   {
     id: "prod_dark_choc",
-    name: "Dark Chocolate",
+    name: "Entremet Dark Mocca",
     description:
-      "Postre de chocolate intenso, de textura cremosa y un acabado tipo espejo.",
+      "Entremet Individual por capas con bizcocho y mousse de chocolate y café con relleno cremoso.",
     basePrice: 22000,
-    imageUrl: "/products/entremet-chocolate.png",
+    imageUrl: "/products/entremet-chocolate.jpg",
     isActive: true,
     category: "Entremets",
     availabilityType: "48h",
@@ -218,11 +213,11 @@ export const mockProducts: Product[] = [
   // --- LAVA COOKIES ---
   {
     id: "prod_cook_choc",
-    name: "Lava Cookie: Doble Chocolate",
+    name: "Lava Cookie Doble Chocolate",
     description:
-      "Galleta con trozos de chocolate que esconde un centro de chocolate fundido.",
+      "Galleta de doble chocolate con chispas y centro de chocolate fundido.",
     basePrice: 14000,
-    imageUrl: "/products/cookie-chocolate.png",
+    imageUrl: "/products/cookie-chocolate.jpg",
     isActive: true,
     category: "Lava Cookies",
     availabilityType: "asap",
@@ -233,11 +228,10 @@ export const mockProducts: Product[] = [
   },
   {
     id: "prod_cook_red",
-    name: "Lava Cookie: Red Velvet",
-    description:
-      "Galleta con el característico estilo red velvet y un centro de chocolate blanco fundido.",
+    name: "Lava Cookie Red Velvet",
+    description: "Galleta red velvet con centro de chocolate blanco fundido.",
     basePrice: 14000,
-    imageUrl: "/products/cookie-red.png",
+    imageUrl: "/products/cookie-red.jpg",
     isActive: true,
     category: "Lava Cookies",
     availabilityType: "asap",
@@ -251,9 +245,9 @@ export const mockProducts: Product[] = [
   {
     id: "prod_brownie",
     name: "Pistachio Brownie",
-    description: "Un brownie húmedo que resalta por sus notas de pistacho.",
+    description: "Brownie húmedo con crema y trozos de pistacho",
     basePrice: 18000,
-    imageUrl: "/products/brownie.png",
+    imageUrl: "/products/brownie.jpg",
     isActive: true,
     category: "Aura Signature",
     availabilityType: "asap",
@@ -265,10 +259,9 @@ export const mockProducts: Product[] = [
   {
     id: "prod_cruller",
     name: "Cruller",
-    description:
-      "Una dona elaborada con masa de churro y cubierta con un glaseado delicado.",
+    description: "Cruller: dona de masa de profiterol (churro) con glaseado.",
     basePrice: 12000,
-    imageUrl: "/products/cruller.png",
+    imageUrl: "/products/cruller.jpg",
     isActive: true,
     category: "Aura Signature",
     availabilityType: "asap",
@@ -280,9 +273,10 @@ export const mockProducts: Product[] = [
   {
     id: "prod_cook_aura",
     name: "Galleta Aura",
-    description: 'Galleta artesanal que varía como "del día".',
+    description:
+      "Galleta Aura con trozos de chocolate, artesanal y fresca del día.",
     basePrice: 5000,
-    imageUrl: "/products/cookie-aura.png",
+    imageUrl: "/products/cookie-aura.jpg",
     isActive: true,
     category: "Aura Signature",
     availabilityType: "asap",
@@ -300,19 +294,19 @@ export const mockProducts: Product[] = [
 export const mockWindows: DeliveryWindow[] = [
   {
     id: "win_1",
-    label: "9:00 a.m. – 12:00 p.m.",
-    date: "2026-03-28",
-    is_asap_compatible: true,
-  },
-  {
-    id: "win_2",
     label: "12:00 p.m. – 3:00 p.m.",
     date: "2026-03-28",
     is_asap_compatible: true,
   },
   {
-    id: "win_3",
+    id: "win_2",
     label: "3:00 p.m. – 6:00 p.m.",
+    date: "2026-03-28",
+    is_asap_compatible: true,
+  },
+  {
+    id: "win_3",
+    label: "9:00 a.m. – 12:00 p.m.",
     date: "2026-03-28",
     is_asap_compatible: true,
   },

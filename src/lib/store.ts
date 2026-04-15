@@ -21,10 +21,6 @@ import {
  * Extends the base Product model with specific user selections and calculated totals.
  */
 export interface CartItem extends Product {
-  /** * Unique hash generated from prodId + selectedVariantId + preferenceIds.
-   * WHY WE NEED THIS: If a user adds "Pasteis (Arequipe)" and "Pasteis (Bocadillo)",
-   * they share the same Product ID but must appear as separate line items in the cart.
-   */
   cartItemId: string;
   selectedVariant: ProductVariant | null;
   selectedPreferences: ProductPreference[];

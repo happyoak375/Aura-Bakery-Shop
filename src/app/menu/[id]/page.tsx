@@ -15,7 +15,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Clock, MessageCircle, ShoppingBag, Zap } from 'lucide-react';
 import { mockProducts, ProductVariant, ProductPreference, AvailabilityType } from '../../../lib/mockData';
-import { useCartStore, CartItem } from '../../../lib/store';
+import { useCartStore } from '../../../lib/store';
 
 // ==========================================
 // 2. HELPER FUNCTIONS
@@ -67,7 +67,7 @@ const getAvailabilityUI = (type: AvailabilityType) => {
 export default function ProductDetailPage() {
   const params = useParams(); // Retrieves the dynamic 'id' from the URL
   const router = useRouter();
-  const { addItem, setDirectPurchaseItem } = useCartStore();
+  const { addItem } = useCartStore();
 
   // Find the specific product data. (In production, this would be a Firestore fetch).
   const product = mockProducts.find((p) => p.id === params.id);
@@ -123,10 +123,9 @@ export default function ProductDetailPage() {
     setTimeout(() => setAddedToast(false), 2000);
   };
 
-  /**
+/**
    * Direct Purchase Flow ("Buy Now"):
-   * Bypasses the main cart to allow a user to instantly buy one specific item 
-   * without abandoning or mixing it with their existing cart contents.
+   * Agrega el producto al carrito principal e inmediatamente redirige al pago.
    */
   const handleBuyNow = () => {
     if (!product) return;
@@ -138,23 +137,11 @@ export default function ProductDetailPage() {
       return;
     }
 
-    // 1. Generate the unique hash for this specific combination
-    const variantPart = selectedVariant ? selectedVariant.id : 'novar';
-    const prefPart = selectedPreferences.length > 0 ? selectedPreferences.map(p => p.id).sort().join('-') : 'nopref';
-    
-    // 2. Construct the single CartItem
-    const directItem: CartItem = {
-      ...product,
-      cartItemId: `direct_${product.id}_${variantPart}_${prefPart}`,
-      selectedVariant,
-      selectedPreferences,
-      calculatedPrice: currentPrice,
-      quantity: 1
-    };
+    // 1. Agrega el item al carrito usando la función normal
+    addItem(product, selectedVariant, selectedPreferences);
 
-    // 3. Save to the isolated 'direct purchase' store and redirect
-    setDirectPurchaseItem(directItem);
-    router.push('/checkout?mode=direct');
+    // 2. Redirige a la página de pago estándar
+    router.push('/checkout');
   };
 
   // ==========================================
@@ -245,7 +232,7 @@ export default function ProductDetailPage() {
                   </div>
                   {/* Only show price delta if it modifies the base price */}
                   {variant.price_delta > 0 && (
-                    <span className="text-sm font-bold text-zinc-500">+${variant.price_delta.toLocaleString('es-CO')}</span>
+                    <span className="hidden text-sm font-bold text-zinc-500">+${variant.price_delta.toLocaleString('es-CO')}</span>
                   )}
                 </label>
               ))}
@@ -278,7 +265,7 @@ export default function ProductDetailPage() {
                       <span className="font-bold text-zinc-900">{pref.name}</span>
                     </div>
                     {pref.price_delta > 0 && (
-                      <span className="text-sm font-bold text-zinc-500">+${pref.price_delta.toLocaleString('es-CO')}</span>
+                      <span className="hidden text-sm font-bold text-zinc-500">+${pref.price_delta.toLocaleString('es-CO')}</span>
                     )}
                   </label>
                 );
