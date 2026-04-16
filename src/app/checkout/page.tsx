@@ -1,7 +1,5 @@
 /**
  * @fileoverview Secure Checkout & Order Processing
- * Handles user details collection, time slot validation via database transactions, 
- * and routing to either the Wompi Payment Gateway or a manual WhatsApp fallback.
  */
 
 "use client";
@@ -55,7 +53,6 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
-
     const fetchTimeSlots = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, 'time_slots'));
@@ -63,7 +60,6 @@ export default function CheckoutPage() {
           id: doc.id,
           ...doc.data()
         })) as TimeSlot[];
-
         setDbTimeSlots(slotsData);
       } catch (error) {
         console.error("Error fetching time slots:", error);
@@ -71,11 +67,12 @@ export default function CheckoutPage() {
         setIsLoadingSlots(false);
       }
     };
-
     fetchTimeSlots();
   }, []);
 
-  const totalAmount = getTotal();
+  const subTotal = getTotal();
+  const deliveryFee = deliveryMethod === 'delivery' ? 10000 : 0;
+  const finalTotal = subTotal + deliveryFee;
 
   useEffect(() => {
     if (mounted && items.length === 0) {
@@ -85,47 +82,57 @@ export default function CheckoutPage() {
 
   if (!mounted || items.length === 0) return null;
 
+  // Determinar si los campos son obligatorios basado en el método de pago
+  const isWompi = paymentMethod === 'wompi';
+
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!timeSlot) {
-      alert("Por favor selecciona una ventana de entrega.");
+    // Validar horario SOLO si es por Wompi
+    if (isWompi && !timeSlot) {
+      alert("Por favor selecciona una ventana de entrega para tu pago.");
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      const timeSlotRef = doc(db, 'time_slots', timeSlot);
       const newOrderRef = doc(collection(db, 'orders'));
       const orderId = newOrderRef.id;
 
       await runTransaction(db, async (transaction) => {
-        const timeSlotDoc = await transaction.get(timeSlotRef);
+        // Solo verificamos y actualizamos la capacidad del horario si el usuario seleccionó uno
+        if (timeSlot) {
+          const timeSlotRef = doc(db, 'time_slots', timeSlot);
+          const timeSlotDoc = await transaction.get(timeSlotRef);
 
-        if (!timeSlotDoc.exists()) {
-          throw new Error("El horario no existe.");
+          if (!timeSlotDoc.exists()) {
+            throw new Error("El horario no existe.");
+          }
+
+          const currentData = timeSlotDoc.data() as TimeSlot;
+
+          if (currentData.currentOrders >= currentData.maxCapacity) {
+            throw new Error("Lo sentimos, este horario se acaba de llenar.");
+          }
+
+          transaction.update(timeSlotRef, {
+            currentOrders: currentData.currentOrders + 1
+          });
         }
 
-        const currentData = timeSlotDoc.data() as TimeSlot;
-
-        if (currentData.currentOrders >= currentData.maxCapacity) {
-          throw new Error("Lo sentimos, este horario se acaba de llenar.");
-        }
-
-        transaction.update(timeSlotRef, {
-          currentOrders: currentData.currentOrders + 1
-        });
-
+        // Guardamos la orden, independientemente de si hay horario o no
         transaction.set(newOrderRef, {
           customerName: name || 'Sin nombre',
           customerPhone: phone || 'Sin teléfono',
           deliveryMethod,
           address: deliveryMethod === 'delivery' ? address : null,
           neighborhood: deliveryMethod === 'delivery' ? neighborhood : null,
-          timeSlotId: timeSlot,
+          timeSlotId: timeSlot || 'Por definir con asesor',
           items: items,
-          totalAmount,
+          subTotal,
+          deliveryFee,
+          totalAmount: finalTotal,
           notes,
           paymentMethod,
           paymentStatus: 'PENDIENTE',
@@ -137,7 +144,7 @@ export default function CheckoutPage() {
       clearCart();
 
       if (paymentMethod === 'wompi') {
-        const amountInCents = Math.round(totalAmount * 100);
+        const amountInCents = Math.round(finalTotal * 100);
         const signature = await getWompiSignature(orderId, amountInCents);
         const publicKey = process.env.NEXT_PUBLIC_WOMPI_PUBLIC_KEY?.trim() || '';
         const redirectUrl = `${window.location.origin}/success`;
@@ -166,12 +173,13 @@ export default function CheckoutPage() {
 
         const selectedSlotLabel = dbTimeSlots.find(s => s.id === timeSlot)?.label;
 
-        // NUEVO MENSAJE PERSONALIZADO
         let message = `¡Hola Aura Bakery! Quisiera que me ayudes a completar mi pedido: \n\n`;
         message += `*ID:* ${orderId.substring(0, 6).toUpperCase()}\n`;
-        message += `*VENTANA:* ${selectedSlotLabel?.toUpperCase() || 'No seleccionada'}\n\n`;
+        message += `*VENTANA:* ${selectedSlotLabel?.toUpperCase() || 'Por definir con asesor'}\n\n`;
         message += `*MI ORDEN:*\n${itemsList}\n\n`;
-        message += `*TOTAL:* $${totalAmount.toLocaleString('es-CO')}\n\n`;
+        message += `*SUBTOTAL:* $${subTotal.toLocaleString('es-CO')}\n`;
+        message += `*DOMICILIO:* $${deliveryFee.toLocaleString('es-CO')}\n`;
+        message += `*TOTAL:* $${finalTotal.toLocaleString('es-CO')}\n\n`;
 
         message += `*DATOS:*\n`;
         if (name) message += `- Nombre: ${name}\n`;
@@ -211,7 +219,9 @@ export default function CheckoutPage() {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-4">
               <Clock size={20} className="text-zinc-900" />
-              <h2 className="font-bold text-lg text-zinc-900">ventana de entrega</h2>
+              <h2 className="font-bold text-lg text-zinc-900">
+                ventana de entrega {isWompi && <span className="text-red-500">*</span>}
+              </h2>
             </div>
 
             <div className="space-y-3">
@@ -235,7 +245,7 @@ export default function CheckoutPage() {
                         <input
                           type="radio"
                           name="timeSlot"
-                          required
+                          required={isWompi}
                           value={slot.id}
                           checked={timeSlot === slot.id}
                           onChange={(e) => setTimeSlot(e.target.value)}
@@ -255,6 +265,28 @@ export default function CheckoutPage() {
                 })
               )}
             </div>
+          </div>
+
+          {/* Payment Method Selector */}
+          <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('wompi')}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${paymentMethod === 'wompi' ? 'bg-[#002B56] text-white' : 'text-zinc-500 hover:bg-gray-50'
+                }`}
+            >
+              <CreditCard size={20} />
+              <span className="text-xs">tarjeta / pse</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('manual')}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${paymentMethod === 'manual' ? 'bg-[#25D366] text-white' : 'text-zinc-500 hover:bg-gray-50'
+                }`}
+            >
+              <MessageCircle size={20} />
+              <span className="text-xs">hablar con asesor</span>
+            </button>
           </div>
 
           {/* Delivery Method Toggle */}
@@ -277,14 +309,17 @@ export default function CheckoutPage() {
             </button>
           </div>
 
-          {/* User Details Form (Campos No Obligatorios) */}
+          {/* User Details Form */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-            <h2 className="font-bold text-lg text-zinc-900 mb-2">tus datos (opcional)</h2>
+            <h2 className="font-bold text-lg text-zinc-900 mb-2">tus datos</h2>
 
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">nombre completo</label>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                nombre completo {isWompi && <span className="text-red-500">*</span>}
+              </label>
               <input
                 type="text"
+                required={isWompi}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
@@ -293,9 +328,12 @@ export default function CheckoutPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">teléfono (whatsapp)</label>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                teléfono (whatsapp) {isWompi && <span className="text-red-500">*</span>}
+              </label>
               <input
                 type="tel"
+                required={isWompi}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
@@ -303,12 +341,15 @@ export default function CheckoutPage() {
               />
             </div>
 
-            {deliveryMethod === 'delivery' && (
-              <div className="space-y-4 pt-2">
+            {deliveryMethod === 'delivery' ? (
+              <div className="space-y-4 pt-2 border-t border-gray-50 mt-4">
                 <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">dirección de entrega</label>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                    dirección de entrega {isWompi && <span className="text-red-500">*</span>}
+                  </label>
                   <input
                     type="text"
+                    required={isWompi}
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
@@ -316,9 +357,12 @@ export default function CheckoutPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">barrio</label>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                    barrio {isWompi && <span className="text-red-500">*</span>}
+                  </label>
                   <input
                     type="text"
+                    required={isWompi}
                     value={neighborhood}
                     onChange={(e) => setNeighborhood(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
@@ -326,10 +370,18 @@ export default function CheckoutPage() {
                   />
                 </div>
               </div>
+            ) : (
+              <div className="bg-zinc-50 border border-zinc-200 p-4 rounded-xl mt-4">
+                <p className="text-sm text-zinc-800">
+                  <span className="font-bold flex items-center gap-2 mb-1"><MapPin size={16} /> Punto de recogida:</span>
+                  Circular 73B # 39 B - 147 Primer parque de Laureles.
+                </p>
+                <p className="text-xs text-zinc-500 mt-2">No se te cobrará domicilio.</p>
+              </div>
             )}
 
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">notas</label>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1 mt-4">notas</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -339,38 +391,33 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* Payment Method Selector */}
-          <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('wompi')}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${paymentMethod === 'wompi' ? 'bg-[#002B56] text-white' : 'text-zinc-500 hover:bg-gray-50'
-                }`}
-            >
-              <CreditCard size={20} />
-              <span className="text-xs">tarjeta / pse</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('manual')}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${paymentMethod === 'manual' ? 'bg-[#25D366] text-white' : 'text-zinc-500 hover:bg-gray-50'
-                }`}
-            >
-              <MessageCircle size={20} />
-              <span className="text-xs">hablar con un asesor</span>
-            </button>
+          {/* Resumen de la Orden */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h3 className="font-bold text-zinc-900 mb-4">resumen</h3>
+            <div className="flex justify-between text-zinc-500 text-sm mb-2">
+              <span>Subtotal</span>
+              <span>${subTotal.toLocaleString('es-CO')}</span>
+            </div>
+            <div className="flex justify-between text-zinc-500 text-sm mb-4">
+              <span>{deliveryMethod === 'delivery' ? 'Domicilio' : 'Recoger en tienda'}</span>
+              <span>{deliveryMethod === 'delivery' ? '+$10.000' : 'Gratis'}</span>
+            </div>
+            <div className="flex justify-between font-extrabold text-zinc-900 text-xl border-t border-gray-100 pt-4">
+              <span>Total</span>
+              <span>${finalTotal.toLocaleString('es-CO')}</span>
+            </div>
           </div>
 
           {/* Dynamic Submit Button */}
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 transition-all shadow-xl active:scale-95 mt-8 disabled:opacity-70 disabled:cursor-not-allowed ${paymentMethod === 'wompi'
+            className={`w-full text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 transition-all shadow-xl active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${paymentMethod === 'wompi'
               ? 'bg-[#002B56] hover:bg-[#001f3e] shadow-blue-100'
               : 'bg-[#25D366] hover:bg-[#20bd5a] shadow-green-100'
               }`}
           >
-            {isSubmitting ? 'procesando...' : paymentMethod === 'wompi' ? 'pagar con wompi' : 'contáctanos por whatsapp'}
+            {isSubmitting ? 'procesando...' : paymentMethod === 'wompi' ? 'ir a pagar' : 'contáctanos por whatsapp'}
           </button>
         </form>
       </div>

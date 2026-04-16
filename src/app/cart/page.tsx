@@ -24,7 +24,7 @@ export default function CartPage() {
   // ==========================================
   // 1. EMPTY STATE RENDER
   // ==========================================
-  
+
   // UX Best Practice: Never leave the user at a dead end. If the cart is empty, 
   // provide a clear call-to-action (CTA) to send them back to the menu.
   if (items.length === 0) {
@@ -37,8 +37,8 @@ export default function CartPage() {
         <p className="text-zinc-500 mb-8 max-w-sm">
           Parece que aún no has agregado ninguna de nuestras delicias. ¡Ve a ver qué hay de nuevo!
         </p>
-        <Link 
-          href="/menu" 
+        <Link
+          href="/menu"
           className="bg-black text-white px-8 py-4 rounded-full font-bold hover:bg-zinc-800 transition-colors shadow-md"
         >
           Explorar el Menú
@@ -51,8 +51,8 @@ export default function CartPage() {
   // 2. ACTIVE CART RENDER
   // ==========================================
   return (
-    <main className="min-h-screen bg-white pb-32">
-      
+    <main className="min-h-screen bg-white pb-44">
+
       {/* --- TOP HEADER --- */}
       <div className="bg-white sticky top-0 z-20 border-b border-gray-100 px-6 py-4 flex items-center gap-4">
         <Link href="/menu" className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
@@ -62,39 +62,30 @@ export default function CartPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-6 pt-6">
-        
+
         {/* --- ITEMS LIST --- */}
         <div className="space-y-6 mb-8">
           {items.map((item) => (
-            /**
-             * UNIQUE KEY MAPPING:
-             * We use the `cartItemId` (the hash we built in the store) as the React key. 
-             * This ensures React renders the list efficiently and doesn't confuse 
-             * two identical products that have different flavor preferences.
-             */
             <div key={item.cartItemId} className="flex gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-              
-              {/* Image Thumbnail: 
-                  Using inline background-image is a clean CSS trick to ensure the 
-                  image perfectly covers the square without distorting the aspect ratio. 
-              */}
-              <div 
+
+              {/* Image Thumbnail */}
+              <div
                 className="w-20 h-20 bg-cover bg-center rounded-xl shrink-0 bg-gray-200"
                 style={{ backgroundImage: `url(${item.imageUrl})` }}
               />
-              
+
               {/* Item Details */}
               <div className="flex-1">
                 <div className="flex justify-between items-start mb-1">
                   <h3 className="font-bold text-zinc-900 leading-tight">{item.name}</h3>
-                  <button 
+                  <button
                     onClick={() => removeItem(item.cartItemId)}
                     className="text-gray-400 hover:text-red-500 transition-colors p-1 -mr-1 -mt-1"
                   >
                     <Trash2 size={18} />
                   </button>
                 </div>
-                
+
                 {/* Variants & Preferences Summary */}
                 <div className="text-sm text-zinc-500 mb-3">
                   {item.selectedVariant && <p>• {item.selectedVariant.name}</p>}
@@ -108,20 +99,18 @@ export default function CartPage() {
                   <span className="font-extrabold text-zinc-900">
                     ${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')}
                   </span>
-                  
+
                   <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-full px-2 py-1 shadow-sm">
-                    {/* Decrease Quantity (Zustand automatically removes if it hits 0) */}
-                    <button 
+                    <button
                       onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
                       className="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-black hover:bg-gray-100 rounded-full transition-colors"
                     >
                       <Minus size={14} />
                     </button>
-                    
+
                     <span className="font-bold text-sm w-4 text-center">{item.quantity}</span>
-                    
-                    {/* Increase Quantity */}
-                    <button 
+
+                    <button
                       onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
                       className="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-black hover:bg-gray-100 rounded-full transition-colors"
                     >
@@ -144,18 +133,26 @@ export default function CartPage() {
         </div>
       </div>
 
-      {/* --- STICKY CHECKOUT BUTTON --- 
-          Anchored to the bottom of the screen so the user doesn't have to 
-          scroll all the way down a long list of items to pay.
-      */}
+      {/* --- STICKY ACTION BUTTONS --- */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-4 pb-6 z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-        <div className="max-w-2xl mx-auto">
-          <Link 
+        <div className="max-w-2xl mx-auto flex flex-col gap-3">
+
+          {/* BOTÓN PRINCIPAL: Ir a Pagar */}
+          <Link
             href="/checkout"
             className="w-full bg-black text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95"
           >
             Ir a Pagar • ${cartTotal.toLocaleString('es-CO')}
           </Link>
+
+          {/* BOTÓN SECUNDARIO: Seguir comprando */}
+          <Link
+            href="/menu"
+            className="w-full text-lg font-bold py-3.5 rounded-full flex items-center justify-center gap-2 transition-all border-2 bg-white border-gray-200 text-zinc-900 hover:border-black active:scale-95"
+          >
+            Seguir comprando
+          </Link>
+
         </div>
       </div>
     </main>

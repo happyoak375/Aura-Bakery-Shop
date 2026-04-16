@@ -44,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
 
         {/* PERSISTENT HEADER: Remains at the top of the screen across all page navigations */}
@@ -58,7 +58,7 @@ export default function RootLayout({
             inside the StickyFooter component itself, we can use a standard import 
             here without breaking Server-Side Rendering (SSR).
         */}
-        <StickyFooter />
+        {/* <StickyFooter /> */}
 
       </body>
     </html>

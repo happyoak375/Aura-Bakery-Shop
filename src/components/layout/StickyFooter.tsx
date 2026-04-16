@@ -14,10 +14,10 @@ import { useEffect, useState } from 'react';
 
 export default function StickyFooter() {
   const [mounted, setMounted] = useState(false);
-  
+
   // Next.js hook to get the current URL route (e.g., '/cart' or '/')
   const pathname = usePathname();
-  
+
   // Zustand selectors: Pulling dynamic cart totals to display on the button
   const totalItemsCount = useCartStore((state) => state.getTotalItems());
   const totalAmount = useCartStore((state) => state.getTotal());
@@ -42,9 +42,20 @@ export default function StickyFooter() {
    * We completely hide this floating button if:
    * 1. The cart is empty (totalItemsCount === 0).
    * 2. The user is already in the checkout pipeline (cart, checkout, or success page).
-   * Having a "View Cart" button while already looking at the cart is redundant UX!
+   * 3. The user is viewing a specific product (/menu/...). This prevents 
+   * overlapping with the product's own "Add to Cart" sticky button!
    */
-  if (totalItemsCount === 0 || pathname === '/cart' || pathname === '/checkout' || pathname === '/success') {
+
+  // Detecta si estamos dentro de un producto específico (ej: /menu/torta-selva) pero no en el menú principal (/menu)
+  const isProductPage = pathname?.startsWith('/menu/');
+
+  if (
+    totalItemsCount === 0 ||
+    pathname === '/cart' ||
+    pathname === '/checkout' ||
+    pathname === '/success' ||
+    isProductPage
+  ) {
     return null;
   }
 
@@ -54,10 +65,10 @@ export default function StickyFooter() {
      * areas of this fixed div, so users can still tap on products "underneath" it.
      */
     <div className="fixed bottom-6 left-0 w-full px-6 z-50 pointer-events-none">
-      
+
       {/* 'pointer-events-auto' reactivates clicks JUST for the button itself */}
       <div className="max-w-md mx-auto pointer-events-auto">
-        <Link 
+        <Link
           href="/cart"
           className="w-full bg-black text-white px-6 py-4 rounded-full flex items-center justify-between font-bold hover:bg-zinc-800 transition-colors shadow-2xl active:scale-95"
         >
@@ -68,7 +79,7 @@ export default function StickyFooter() {
             </div>
             <span>Ver carrito</span>
           </div>
-          
+
           {/* Formatted Total Price */}
           <span>${totalAmount.toLocaleString('es-CO')}</span>
         </Link>
