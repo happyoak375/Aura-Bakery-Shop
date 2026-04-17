@@ -1,8 +1,5 @@
 /**
  * @fileoverview Dynamic Product Detail Page
- * Renders individual product pages based on the URL parameter (e.g., /menu/prod_selva).
- * Handles user selections for variants and preferences, calculates real-time pricing, 
- * and routes users to either the Cart or the Direct Checkout flow.
  */
 
 "use client";
@@ -21,13 +18,6 @@ import { useCartStore } from '../../../lib/store';
 // 2. HELPER FUNCTIONS
 // ==========================================
 
-/**
- * Maps the backend 'AvailabilityType' to its corresponding frontend UI configuration.
- * WHY EXTRACT THIS?: Keeping this logic outside the main component prevents it from 
- * being redefined on every render and keeps the JSX tree clean.
- * * @param {AvailabilityType} type - The lead time required for the product.
- * @returns An object containing the badge text, icon, colors, and marketing copy.
- */
 const getAvailabilityUI = (type: AvailabilityType) => {
   switch (type) {
     case 'asap':
@@ -65,33 +55,24 @@ const getAvailabilityUI = (type: AvailabilityType) => {
 // 3. MAIN COMPONENT
 // ==========================================
 export default function ProductDetailPage() {
-  const params = useParams(); // Retrieves the dynamic 'id' from the URL
+  const params = useParams();
   const router = useRouter();
   const { addItem } = useCartStore();
 
-  // Find the specific product data. (In production, this would be a Firestore fetch).
   const product = mockProducts.find((p) => p.id === params.id);
 
   // --- State Management ---
-  
-  // Variants (Radio button behavior: only one can be selected at a time)
-  // We default to the first variant in the array if variants exist.
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     product?.variants.length ? product.variants[0] : null
   );
-  
-  // Preferences (Checkbox behavior: multiple can be selected)
-  const [selectedPreferences, setSelectedPreferences] = useState<ProductPreference[]>([]);
-  
-  // UX State for the Add to Cart button confirmation animation
-  const [addedToast, setAddedToast] = useState(false);
 
-  /**
-   * PERFORMANCE OPTIMIZATION: `useMemo`
-   * Recalculates the total price dynamically whenever the user changes a variant or preference.
-   * By wrapping it in useMemo, React caches the result and only recalculates it if 
-   * 'product', 'selectedVariant', or 'selectedPreferences' actually change.
-   */
+  const [selectedPreferences, setSelectedPreferences] = useState<ProductPreference[]>([]);
+
+  // UX State
+  const [addedToast, setAddedToast] = useState(false);
+  // NEW: Counter state replacing the boolean to track exact local additions
+  const [localItemCount, setLocalItemCount] = useState(0);
+
   const currentPrice = useMemo(() => {
     if (!product) return 0;
     const variantDelta = selectedVariant ? selectedVariant.price_delta : 0;
@@ -102,45 +83,38 @@ export default function ProductDetailPage() {
 
   // --- Event Handlers ---
 
-  /**
-   * Toggles a preference on or off. 
-   * If it exists in the array, remove it. If it doesn't, append it.
-   */
   const togglePreference = (pref: ProductPreference) => {
     setSelectedPreferences((prev) =>
       prev.some((p) => p.id === pref.id)
-        ? prev.filter((p) => p.id !== pref.id) // Remove
-        : [...prev, pref] // Add
+        ? prev.filter((p) => p.id !== pref.id)
+        : [...prev, pref]
     );
   };
 
-  /**
-   * Standard Cart Flow: Pushes the item to Zustand and shows a temporary success toast.
-   */
   const handleAddToCart = () => {
     addItem(product!, selectedVariant, selectedPreferences);
     setAddedToast(true);
+
+    // NEW: Increment the local counter by 1 each click
+    setLocalItemCount(prevCount => prevCount + 1);
+
     setTimeout(() => setAddedToast(false), 2000);
   };
 
-/**
-   * Direct Purchase Flow ("Buy Now"):
-   * Agrega el producto al carrito principal e inmediatamente redirige al pago.
-   */
   const handleBuyNow = () => {
     if (!product) return;
 
-    // Special Case: Highly custom products route straight to human assistance
     if (product.availabilityType === 'advisor_only') {
       const waMsg = encodeURIComponent(`Hola, quiero ayuda con el producto: ${product.name}.`);
       window.open(`https://wa.me/573173285832?text=${waMsg}`, '_blank');
       return;
     }
 
-    // 1. Agrega el item al carrito usando la función normal
-    addItem(product, selectedVariant, selectedPreferences);
+    // NEW: Only push to cart if the user hasn't added anything locally yet
+    if (localItemCount === 0) {
+      addItem(product, selectedVariant, selectedPreferences);
+    }
 
-    // 2. Redirige a la página de pago estándar
     router.push('/checkout');
   };
 
@@ -148,7 +122,6 @@ export default function ProductDetailPage() {
   // 4. RENDER HELPERS
   // ==========================================
 
-  // Failsafe: If the URL ID doesn't match any product, show a 404-style fallback
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
@@ -158,7 +131,6 @@ export default function ProductDetailPage() {
     );
   }
 
-  // Generate the dynamic UI components based on the product's lead time
   const ui = getAvailabilityUI(product.availabilityType);
 
   // ==========================================
@@ -166,16 +138,16 @@ export default function ProductDetailPage() {
   // ==========================================
   return (
     <main className="min-h-screen bg-white pb-32">
-      
+
       {/* --- HERO IMAGE & BACK BUTTON --- */}
       <div className="relative h-72 w-full md:h-96">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${product.imageUrl})` }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-        <Link 
-          href="/menu" 
+        <Link
+          href="/menu"
           className="absolute top-6 left-6 bg-white/90 backdrop-blur-sm p-3 rounded-full text-zinc-900 shadow-md hover:bg-white transition-colors"
         >
           <ArrowLeft size={24} />
@@ -183,7 +155,7 @@ export default function ProductDetailPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-6 -mt-8 relative z-10 bg-white rounded-t-3xl pt-8">
-        
+
         {/* --- PRODUCT HEADER --- */}
         <div className="mb-6">
           <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-3 ${ui.badgeClass}`}>
@@ -208,29 +180,25 @@ export default function ProductDetailPage() {
           </p>
         </div>
 
-        {/* --- VARIANTS SELECTOR (RADIO STYLE) --- */}
+        {/* --- VARIANTS SELECTOR --- */}
         {product.variants.length > 0 && (
           <div className="mb-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-3">Elige un tamaño/opción</h3>
             <div className="space-y-3">
               {product.variants.map((variant) => (
-                <label 
+                <label
                   key={variant.id}
                   onClick={() => setSelectedVariant(variant)}
-                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    selectedVariant?.id === variant.id ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
-                  }`}
+                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedVariant?.id === variant.id ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
-                    {/* Custom Radio Button UI */}
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      selectedVariant?.id === variant.id ? 'border-black' : 'border-gray-300'
-                    }`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedVariant?.id === variant.id ? 'border-black' : 'border-gray-300'
+                      }`}>
                       {selectedVariant?.id === variant.id && <div className="w-2.5 h-2.5 bg-black rounded-full" />}
                     </div>
                     <span className="font-bold text-zinc-900">{variant.name}</span>
                   </div>
-                  {/* Only show price delta if it modifies the base price */}
                   {variant.price_delta > 0 && (
                     <span className="hidden text-sm font-bold text-zinc-500">+${variant.price_delta.toLocaleString('es-CO')}</span>
                   )}
@@ -240,7 +208,7 @@ export default function ProductDetailPage() {
           </div>
         )}
 
-        {/* --- PREFERENCES SELECTOR (CHECKBOX STYLE) --- */}
+        {/* --- PREFERENCES SELECTOR --- */}
         {product.preferences.length > 0 && (
           <div className="mb-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-3">Preferencias (Opcional)</h3>
@@ -248,18 +216,15 @@ export default function ProductDetailPage() {
               {product.preferences.map((pref) => {
                 const isSelected = selectedPreferences.some(p => p.id === pref.id);
                 return (
-                  <label 
+                  <label
                     key={pref.id}
                     onClick={() => togglePreference(pref)}
-                    className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      isSelected ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
-                    }`}
+                    className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
-                      {/* Custom Checkbox UI */}
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                        isSelected ? 'border-black bg-black' : 'border-gray-300'
-                      }`}>
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isSelected ? 'border-black bg-black' : 'border-gray-300'
+                        }`}>
                         {isSelected && <div className="w-2 h-2 bg-white rounded-sm" />}
                       </div>
                       <span className="font-bold text-zinc-900">{pref.name}</span>
@@ -278,29 +243,44 @@ export default function ProductDetailPage() {
 
       {/* --- STICKY ACTION BUTTONS --- */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-4 pb-6 z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-        <div className="max-w-2xl mx-auto flex flex-col gap-3">
-          
-          {/* BUY NOW BUTTON */}
-          <button 
+        {/* Swaps button order if localItemCount > 0 */}
+        <div className={`max-w-2xl mx-auto flex flex-col gap-3 ${localItemCount > 0 ? 'flex-col-reverse' : ''}`}>
+
+          {/* BUY NOW / CHECKOUT BUTTON */}
+          <button
             onClick={handleBuyNow}
             className="w-full bg-black text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95"
           >
             {product.availabilityType === 'advisor_only' ? (
               <>Hablar con un asesor <MessageCircle size={20} /></>
+            ) : localItemCount > 0 ? (
+              'Ir a pagar'
             ) : (
               'Comprar ahora'
             )}
           </button>
 
-          {/* ADD TO CART BUTTON (Hidden if product requires advisor) */}
+          {/* ADD TO CART BUTTON */}
           {product.availabilityType !== 'advisor_only' && (
-            <button 
+            <button
               onClick={handleAddToCart}
-              className={`w-full text-lg font-bold py-3.5 rounded-full flex items-center justify-center gap-2 transition-all border-2 active:scale-95 ${
-                addedToast ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-200 text-zinc-900 hover:border-black'
-              }`}
+              className={`w-full text-lg font-bold py-3.5 rounded-full flex items-center justify-center gap-2 transition-all border-2 active:scale-95 ${addedToast ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-200 text-zinc-900 hover:border-black'
+                }`}
             >
-              {addedToast ? '¡Agregado al carrito!' : <><ShoppingBag size={20} /> Agregar al carrito</>}
+              {addedToast ? (
+                '¡Agregado al carrito!'
+              ) : (
+                <>
+                  <ShoppingBag size={20} />
+                  Agregar al carrito
+                  {/* NEW: Dynamic Badge showing how many times it was added */}
+                  {localItemCount > 0 && (
+                    <span className="ml-1 bg-zinc-200 text-zinc-800 text-xs font-extrabold px-2 py-0.5 rounded-full">
+                      {localItemCount}
+                    </span>
+                  )}
+                </>
+              )}
             </button>
           )}
 
