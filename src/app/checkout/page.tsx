@@ -30,8 +30,13 @@ interface TimeSlot {
 
 export default function CheckoutPage() {
   const router = useRouter();
-  // Added updateQuantity to modify items directly from checkout
   const { items, getTotal, clearCart, updateQuantity } = useCartStore();
+
+  // ==========================================
+  // FEATURE FLAG: Delivery Time Windows
+  // Change to 'true' when the business is ready to handle schedules again.
+  // ==========================================
+  const ENABLE_TIME_SLOTS = false;
 
   const [mounted, setMounted] = useState(false);
 
@@ -54,6 +59,12 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
+    // Only fetch slots if the feature is enabled to save database reads
+    if (!ENABLE_TIME_SLOTS) {
+      setIsLoadingSlots(false);
+      return;
+    }
+
     const fetchTimeSlots = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, 'time_slots'));
@@ -69,11 +80,9 @@ export default function CheckoutPage() {
       }
     };
     fetchTimeSlots();
-  }, []);
+  }, [ENABLE_TIME_SLOTS]);
 
   const subTotal = getTotal();
-  // Only apply delivery fee if paying via Wompi AND delivery is selected.
-  // If manual (WhatsApp), the toggle is hidden, so we zero out the fee.
   const deliveryFee = paymentMethod === 'wompi' && deliveryMethod === 'delivery' ? 10000 : 0;
   const finalTotal = subTotal + deliveryFee;
 
@@ -90,7 +99,8 @@ export default function CheckoutPage() {
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isWompi && !timeSlot) {
+    // Guard bypassed if time slots are disabled
+    if (ENABLE_TIME_SLOTS && isWompi && !timeSlot) {
       alert("Por favor selecciona una ventana de entrega para tu pago.");
       return;
     }
@@ -102,7 +112,8 @@ export default function CheckoutPage() {
       const orderId = newOrderRef.id;
 
       await runTransaction(db, async (transaction) => {
-        if (timeSlot && isWompi) {
+        // Only run capacity checks if the feature is active
+        if (ENABLE_TIME_SLOTS && timeSlot && isWompi) {
           const timeSlotRef = doc(db, 'time_slots', timeSlot);
           const timeSlotDoc = await transaction.get(timeSlotRef);
 
@@ -127,7 +138,7 @@ export default function CheckoutPage() {
           deliveryMethod,
           address: deliveryMethod === 'delivery' ? address : null,
           neighborhood: deliveryMethod === 'delivery' ? neighborhood : null,
-          timeSlotId: timeSlot || 'Por definir con asesor',
+          timeSlotId: (ENABLE_TIME_SLOTS && timeSlot) ? timeSlot : 'Por definir con asesor',
           items: items,
           subTotal,
           deliveryFee,
@@ -169,8 +180,6 @@ export default function CheckoutPage() {
           return text;
         }).join('\n');
 
-        const selectedSlotLabel = dbTimeSlots.find(s => s.id === timeSlot)?.label;
-
         let message = `¡Hola Aura Bakery! Quisiera que me ayudes a completar mi pedido: \n\n`;
         message += `*ID:* ${orderId.substring(0, 6).toUpperCase()}\n`;
         message += `*MI ORDEN:*\n${itemsList}\n\n`;
@@ -185,7 +194,7 @@ export default function CheckoutPage() {
         const encodedMessage = encodeURIComponent(message);
         const whatsappNumber = "573173285832";
 
-        window.location.href = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+        window.location.href = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank';
       }
 
     } catch (error: any) {
@@ -207,7 +216,7 @@ export default function CheckoutPage() {
       <div className="max-w-xl mx-auto px-6 pt-6">
         <form onSubmit={handleProcessOrder} className="space-y-6">
 
-          {/* 1. Payment Method Selector (Always visible at the top) */}
+          {/* 1. Payment Method Selector */}
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
             <button
               type="button"
@@ -229,10 +238,9 @@ export default function CheckoutPage() {
             </button>
           </div>
 
-          {/* HIDE THESE SECTIONS IF WHATSAPP IS SELECTED */}
           {paymentMethod === 'wompi' && (
             <>
-              {/* 2. Delivery Method Toggle (Moved up before time slots) */}
+              {/* 2. Delivery Method Toggle */}
               <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
                 <button
                   type="button"
@@ -252,57 +260,59 @@ export default function CheckoutPage() {
                 </button>
               </div>
 
-              {/* 3. Time Slot Selector */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <div className="flex items-center gap-2 mb-4">
-                  <Clock size={20} className="text-zinc-900" />
-                  <h2 className="font-bold text-lg text-zinc-900">
-                    ventana de entrega <span className="text-red-500">*</span>
-                  </h2>
+              {/* 3. Time Slot Selector (Dynamically Hidden) */}
+              {ENABLE_TIME_SLOTS && (
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Clock size={20} className="text-zinc-900" />
+                    <h2 className="font-bold text-lg text-zinc-900">
+                      ventana de entrega <span className="text-red-500">*</span>
+                    </h2>
+                  </div>
+
+                  <div className="space-y-3">
+                    {isLoadingSlots ? (
+                      <div className="text-zinc-400 text-sm font-light animate-pulse">cargando horarios...</div>
+                    ) : dbTimeSlots.length === 0 ? (
+                      <div className="text-red-500 text-sm font-light">no hay ventanas disponibles hoy.</div>
+                    ) : (
+                      dbTimeSlots.map((slot) => {
+                        const isFull = slot.currentOrders >= slot.maxCapacity;
+                        const isAvailable = slot.isActive && !isFull;
+
+                        return (
+                          <label
+                            key={slot.id}
+                            className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${!isAvailable ? 'border-gray-50 bg-gray-50 opacity-60 cursor-not-allowed' :
+                              timeSlot === slot.id ? 'border-black bg-zinc-50 cursor-pointer' : 'border-gray-100 hover:border-gray-200 cursor-pointer'
+                              }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="radio"
+                                name="timeSlot"
+                                required={isWompi}
+                                value={slot.id}
+                                checked={timeSlot === slot.id}
+                                onChange={(e) => setTimeSlot(e.target.value)}
+                                disabled={!isAvailable}
+                                className="w-4 h-4 accent-black disabled:accent-gray-300"
+                              />
+                              <span className={`font-medium ${!isAvailable ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
+                                {slot.label}
+                              </span>
+                            </div>
+
+                            {!isAvailable && (
+                              <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">agotado</span>
+                            )}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-
-                <div className="space-y-3">
-                  {isLoadingSlots ? (
-                    <div className="text-zinc-400 text-sm font-light animate-pulse">cargando horarios...</div>
-                  ) : dbTimeSlots.length === 0 ? (
-                    <div className="text-red-500 text-sm font-light">no hay ventanas disponibles hoy.</div>
-                  ) : (
-                    dbTimeSlots.map((slot) => {
-                      const isFull = slot.currentOrders >= slot.maxCapacity;
-                      const isAvailable = slot.isActive && !isFull;
-
-                      return (
-                        <label
-                          key={slot.id}
-                          className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${!isAvailable ? 'border-gray-50 bg-gray-50 opacity-60 cursor-not-allowed' :
-                            timeSlot === slot.id ? 'border-black bg-zinc-50 cursor-pointer' : 'border-gray-100 hover:border-gray-200 cursor-pointer'
-                            }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="radio"
-                              name="timeSlot"
-                              required={isWompi}
-                              value={slot.id}
-                              checked={timeSlot === slot.id}
-                              onChange={(e) => setTimeSlot(e.target.value)}
-                              disabled={!isAvailable}
-                              className="w-4 h-4 accent-black disabled:accent-gray-300"
-                            />
-                            <span className={`font-medium ${!isAvailable ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
-                              {slot.label}
-                            </span>
-                          </div>
-
-                          {!isAvailable && (
-                            <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">agotado</span>
-                          )}
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+              )}
 
               {/* 4. User Details Form */}
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
@@ -392,7 +402,6 @@ export default function CheckoutPage() {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <h3 className="font-bold text-zinc-900 mb-4">resumen</h3>
 
-            {/* NEW: Itemized List with Quantities */}
             <div className="space-y-4 mb-6 border-b border-gray-100 pb-4">
               {items.map((item) => (
                 <div key={item.cartItemId} className="flex justify-between items-center text-sm">
@@ -403,7 +412,6 @@ export default function CheckoutPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-4">
-                    {/* Quantity Modifier */}
                     <div className="flex items-center border border-gray-200 rounded-lg">
                       <button
                         type="button"
@@ -423,7 +431,6 @@ export default function CheckoutPage() {
                         +
                       </button>
                     </div>
-                    {/* Price */}
                     <span className="font-medium text-zinc-900 min-w-[4.5rem] text-right">
                       ${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')}
                     </span>
