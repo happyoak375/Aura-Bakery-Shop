@@ -1,10 +1,3 @@
-// src/lib/whatsapp.ts
-
-/**
- * Sends a WhatsApp confirmation message using the Meta Cloud API.
- * * @param phone - The customer's phone number (must include country code, e.g., '57' for Colombia)
- * @param orderId - The Firebase document ID for the order
- */
 export async function sendWhatsAppConfirmation(phone: string, orderId: string) {
   const token = process.env.WHATSAPP_API_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -14,29 +7,18 @@ export async function sendWhatsAppConfirmation(phone: string, orderId: string) {
     return;
   }
 
-  // Ensure the phone number has the Colombian country code if not present
-  const formattedPhone = phone.startsWith("57") ? phone : `57${phone}`;
+  // 1. Limpiar el teléfono: quita el '+', espacios y guiones
+  const cleanPhone = phone.replace(/\D/g, "");
 
   const payload = {
     messaging_product: "whatsapp",
-    to: formattedPhone,
+    to: cleanPhone, // Ahora enviará 1908... o 57317... sin basura
     type: "template",
     template: {
-      name: "order_confirmation", // Replace with your approved template name in Meta Business Manager
+      name: "hello_world", // USA ESTA PARA LA PRUEBA. Luego la cambias cuando aprueben la tuya.
       language: {
-        code: "es", // Spanish for your local customers
+        code: "en_US", // La plantilla hello_world suele estar en inglés
       },
-      components: [
-        {
-          type: "body",
-          parameters: [
-            {
-              type: "text",
-              text: orderId, // Passes the order ID into the WhatsApp template
-            },
-          ],
-        },
-      ],
     },
   };
 
@@ -59,9 +41,9 @@ export async function sendWhatsAppConfirmation(phone: string, orderId: string) {
       throw new Error(`WhatsApp API Error: ${JSON.stringify(data)}`);
     }
 
-    console.log(`WhatsApp message successfully sent to ${formattedPhone}`);
+    console.log(`¡Mensaje enviado con éxito a ${cleanPhone}!`);
   } catch (error) {
-    console.error("Failed to send WhatsApp confirmation:", error);
+    console.error("Error al enviar WhatsApp:", error);
     throw error;
   }
 }
