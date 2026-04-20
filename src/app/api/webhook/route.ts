@@ -7,8 +7,9 @@
 
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore"; // Added getDoc
 import { db } from "../../../lib/firebase";
+import { sendWhatsAppConfirmation } from "../../../lib/whatsapp"; // The new WhatsApp utility
 
 /**
  * Handles incoming POST requests from the Wompi Event Webhook.
@@ -75,10 +76,8 @@ export async function POST(request: Request) {
     }
 
     /**
-     * DATABASE UPDATE:
-     * The signature is valid. We can safely update the database.
-     * We use the 'reference' field because we passed our Firebase Document ID
-     * into that field when we originally initialized the checkout widget.
+     * DATABASE UPDATE & WHATSAPP NOTIFICATION:
+     * The signature is valid. We can safely update the database and notify the customer.
      */
     const orderId = transaction.reference;
     const paymentStatus = transaction.status;
@@ -87,10 +86,41 @@ export async function POST(request: Request) {
 
     // Normalize Wompi's exact status strings to our application's UI states
     let newStatus = "pending";
-    if (paymentStatus === "APPROVED") newStatus = "paid";
-    if (paymentStatus === "DECLINED" || paymentStatus === "ERROR")
-      newStatus = "failed";
+    
+    if (paymentStatus === "APPROVED") {
+      newStatus = "paid";
 
+      // 🚀 NEW: Fetch customer data and trigger WhatsApp
+      try {
+        // Retrieve the order from Firebase to get the customer's phone number
+        const orderSnap = await getDoc(orderRef);
+        
+        if (orderSnap.exists()) {
+          const orderData = orderSnap.data();
+          // Note: Verify that 'customerPhone' exactly matches your Firestore field name
+          const customerPhone = orderData.customerPhone; 
+
+          if (customerPhone) {
+            await sendWhatsAppConfirmation(customerPhone, orderId);
+            console.log(`WhatsApp confirmation triggered for order ${orderId}`);
+          } else {
+            console.error(`Orden ${orderId} no tiene número de teléfono guardado para WhatsApp.`);
+          }
+        } else {
+          console.error(`No se encontró el documento de la orden ${orderId} en Firebase.`);
+        }
+      } catch (waError) {
+        // We log the error but DO NOT throw it. 
+        // We still want the webhook to finish and return a 200 OK to Wompi.
+        console.error("Error en la integración de WhatsApp:", waError);
+      }
+    }
+
+    if (paymentStatus === "DECLINED" || paymentStatus === "ERROR") {
+      newStatus = "failed";
+    }
+
+    // Update the document with the final status and transaction ID
     await updateDoc(orderRef, {
       paymentStatus: newStatus,
       wompiTransactionId: transaction.id, // Crucial to store for financial auditing/refunds

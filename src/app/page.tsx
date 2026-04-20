@@ -57,7 +57,6 @@ export default function Home() {
           fill
           priority
           className="object-cover"
-          quality={80}
         />
 
         {/* Dark overlay to ensure text remains readable */}

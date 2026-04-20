@@ -137,7 +137,7 @@ export default function ProductDetailPage() {
   // 5. MAIN RENDER
   // ==========================================
   return (
-    <main className="min-h-screen bg-white pb-32">
+    <main className="min-h-screen bg-white pb-38">
 
       {/* --- HERO IMAGE & BACK BUTTON --- */}
       <div className="relative h-72 w-full md:h-96">
