@@ -1,149 +1,93 @@
 /**
- * @fileoverview Wompi Webhook Listener (Next.js API Route)
- * This serverless endpoint acts as the official source of truth for payment statuses.
- * Wompi's servers will asynchronously POST to this URL whenever a transaction changes
- * state (e.g., from pending to APPROVED or DECLINED).
+ * @fileoverview Wompi Webhook Listener
  */
 
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { doc, updateDoc, getDoc } from "firebase/firestore"; // Added getDoc
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
-import { sendWhatsAppConfirmation } from "../../../lib/whatsapp"; // The new WhatsApp utility
+import { sendWhatsAppConfirmation, sendAdminNotification } from "../../../lib/whatsapp";
 
-/**
- * Handles incoming POST requests from the Wompi Event Webhook.
- * @param {Request} request - The incoming HTTP request containing the Wompi payload.
- * @returns {Promise<NextResponse>} HTTP status confirming receipt or indicating an error.
- */
 export async function POST(request: Request) {
   try {
-    // 1. Parse the incoming webhook payload
     const body = await request.json();
-
     const { event, data, signature, timestamp } = body;
     const transaction = data.transaction;
 
-    /**
-     * EVENT FILTERING:
-     * Webhooks can trigger for many reasons. We strictly only care about
-     * 'transaction.updated' to know if a payment succeeded or failed.
-     */
     if (event !== "transaction.updated") {
       return NextResponse.json({ message: "Event ignored" }, { status: 200 });
     }
 
-    // 2. Retrieve Webhook Secret
     const eventsSecret = process.env.WOMPI_EVENTS_SECRET;
     if (!eventsSecret) {
-      console.error("Falta WOMPI_EVENTS_SECRET");
-      return NextResponse.json(
-        { error: "Server misconfiguration" },
-        { status: 500 },
-      );
+      return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
     }
 
-    /**
-     * SECURITY: WEBHOOK SIGNATURE VALIDATION
-     * To prevent malicious actors from sending fake "APPROVED" payloads to our server,
-     * Wompi signs the payload. We must recreate the hash using our private events secret.
-     * If our hash matches their hash, the payload is authentically from Wompi.
-     */
     let concatenatedString = "";
-
-    // Wompi dynamically specifies which properties were used for the signature
     signature.properties.forEach((prop: string) => {
-      const keys = prop.split("."); // e.g., 'transaction.id'
-
-      // Traverse the nested data object to extract the actual value for the hash
+      const keys = prop.split(".");
       concatenatedString += keys.reduce((obj, key) => obj[key], data);
     });
+    concatenatedString += timestamp + eventsSecret;
 
-    // Append timestamp and secret to the end of the string as required by Wompi docs
-    concatenatedString += timestamp;
-    concatenatedString += eventsSecret;
+    const expectedChecksum = crypto.createHash("sha256").update(concatenatedString).digest("hex");
 
-    // Generate our own hash to compare against Wompi's checksum
-    const expectedChecksum = crypto
-      .createHash("sha256")
-      .update(concatenatedString)
-      .digest("hex");
-
-    // Failsafe: Abort immediately if the signatures do not perfectly match
     if (expectedChecksum !== signature.checksum) {
-      console.error("¡Alerta de Seguridad! La firma del webhook no coincide.");
+      console.error("⚠️ Security Alert: Webhook signature mismatch!");
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
-    /**
-     * DATABASE UPDATE & WHATSAPP NOTIFICATION:
-     * The signature is valid. We can safely update the database and notify the customer.
-     */
     const orderId = transaction.reference;
     const paymentStatus = transaction.status;
-
     const orderRef = doc(db, "orders", orderId);
 
-    // Normalize Wompi's exact status strings to our application's UI states
     let newStatus = "pending";
-    
+
     if (paymentStatus === "APPROVED") {
       newStatus = "paid";
 
-      // 🚀 NEW: Fetch customer data and trigger WhatsApp
       try {
-        // Retrieve the order from Firebase to get the customer's phone number
         const orderSnap = await getDoc(orderRef);
-        
+
         if (orderSnap.exists()) {
           const orderData = orderSnap.data();
-          // Note: Verify that 'customerPhone' exactly matches your Firestore field name
-          const customerPhone = orderData.customerPhone; 
+          const customerPhone = orderData.customerPhone;
+          
+          // Using EXACT keys: customer_name and total
+          const customer_name = orderData.customer_name || "Cliente";
+          const totalAmount = orderData.total || 0;
 
           if (customerPhone) {
             await sendWhatsAppConfirmation(customerPhone, orderId);
-            console.log(`WhatsApp confirmation triggered for order ${orderId}`);
-          } else {
-            console.error(`Orden ${orderId} no tiene número de teléfono guardado para WhatsApp.`);
           }
-        } else {
-          console.error(`No se encontró el documento de la orden ${orderId} en Firebase.`);
-        }
-      } catch (waError) {
-        // We log the error but DO NOT throw it. 
-        // We still want the webhook to finish and return a 200 OK to Wompi.
-        console.error("Error en la integración de WhatsApp:", waError);
-      }
-    }
 
-    if (paymentStatus === "DECLINED" || paymentStatus === "ERROR") {
+          const adminPhone = process.env.ADMIN_PHONE_NUMBER;
+          if (adminPhone) {
+            await sendAdminNotification(
+              adminPhone, 
+              orderId, 
+              customer_name, 
+              totalAmount
+            );
+          }
+        }
+      } catch (err) {
+        console.error("Notification Error:", err);
+      }
+    } else if (paymentStatus === "DECLINED" || paymentStatus === "ERROR") {
       newStatus = "failed";
     }
 
-    // Update the document with the final status and transaction ID
     await updateDoc(orderRef, {
       paymentStatus: newStatus,
-      wompiTransactionId: transaction.id, // Crucial to store for financial auditing/refunds
+      wompiTransactionId: transaction.id,
       updatedAt: new Date(),
     });
 
-    console.log(`Orden ${orderId} actualizada a estado: ${newStatus}`);
+    return NextResponse.json({ message: "Success" }, { status: 200 });
 
-    /**
-     * ACKNOWLEDGEMENT:
-     * We must return a 200 OK so Wompi knows we successfully received and processed
-     * the event. If we don't, Wompi will keep retrying the webhook.
-     */
-    return NextResponse.json(
-      { message: "Webhook procesado exitosamente" },
-      { status: 200 },
-    );
   } catch (error) {
-    console.error("Error procesando webhook de Wompi:", error);
-    // Returning a 500 tells Wompi our server crashed, prompting them to retry later.
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    );
+    console.error("Webhook Processing Error:", error);
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }

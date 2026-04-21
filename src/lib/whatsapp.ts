@@ -1,37 +1,72 @@
+/**
+ * @fileoverview WhatsApp Cloud API Utility
+ */
+
+const token = process.env.WHATSAPP_API_TOKEN;
+const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+const formatCOP = (amount: number) => {
+  return new Intl.NumberFormat('es-CO').format(amount);
+};
+
 export async function sendWhatsAppConfirmation(phone: string, orderId: string) {
-  console.log("--- [WHATSAPP ATTEMPT START] ---");
-  console.log(`1. Raw phone from database/input: "${phone}"`);
-  console.log(`2. Order ID: "${orderId}"`);
-
-  const token = process.env.WHATSAPP_API_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-
-  // Verify environment variables are actually loaded
-  if (!token) {
-    console.error("❌ ERROR: WHATSAPP_API_TOKEN is undefined. Check Vercel Env Vars.");
-    return;
-  }
-  if (!phoneNumberId) {
-    console.error("❌ ERROR: WHATSAPP_PHONE_NUMBER_ID is undefined. Check Vercel Env Vars.");
-    return;
-  }
-
-  // Format the number: digits only
+  if (!token || !phoneNumberId) return;
   const cleanPhone = phone.replace(/\D/g, "");
-  console.log(`3. Cleaned phone for API: "${cleanPhone}"`);
+  
+  const payload = {
+    messaging_product: "whatsapp",
+    to: cleanPhone,
+    type: "template",
+    template: {
+      name: "order_confirmation", 
+      language: { code: "es" },
+      components: [
+        {
+          type: "body",
+          parameters: [{ type: "text", text: orderId }],
+        },
+      ],
+    },
+  };
+
+  return await callMetaAPI(payload);
+}
+
+export async function sendAdminNotification(
+  phone: string,
+  orderId: string,
+  customer_name: string, // Updated parameter name
+  totalAmount: number
+) {
+  if (!token || !phoneNumberId) return;
+
+  const cleanPhone = phone.replace(/\D/g, "");
+  const formattedPrice = formatCOP(totalAmount);
 
   const payload = {
     messaging_product: "whatsapp",
     to: cleanPhone,
     type: "template",
     template: {
-      name: "hello_world",
-      language: { code: "en_US" },
+      name: "admin_payment_alert", 
+      language: { code: "es" },
+      components: [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: customer_name }, // Using customer_name
+            { type: "text", text: formattedPrice },
+            { type: "text", text: orderId },
+          ],
+        },
+      ],
     },
   };
 
-  console.log("4. Sending request to Meta API...");
+  return await callMetaAPI(payload);
+}
 
+async function callMetaAPI(payload: any) {
   try {
     const response = await fetch(
       `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
@@ -46,20 +81,13 @@ export async function sendWhatsAppConfirmation(phone: string, orderId: string) {
     );
 
     const data = await response.json();
-
     if (!response.ok) {
-      console.error("❌ META API ERROR RESPONSE:");
-      console.error(JSON.stringify(data, null, 2));
-      throw new Error(`Meta API Error: ${data.error?.message || "Unknown Error"}`);
+      console.error("❌ Meta API Error:", JSON.stringify(data, null, 2));
+      return null;
     }
-
-    console.log(`✅ SUCCESS: Message sent to ${cleanPhone}`);
-    console.log("--- [WHATSAPP ATTEMPT END] ---");
     return data;
-
   } catch (error) {
-    console.error("❌ CRITICAL ERROR in sendWhatsAppConfirmation:");
-    console.error(error);
-    throw error;
+    console.error("❌ WhatsApp API Network Error:", error);
+    return null;
   }
 }
