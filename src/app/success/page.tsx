@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from 'react'; // 1. Import Suspense
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, XCircle, MessageCircle, ArrowLeft, RefreshCcw } from 'lucide-react';
@@ -10,7 +11,8 @@ const cormorant = Cormorant_Garamond({
   weight: ['500', '600']
 });
 
-export default function SuccessPage() {
+// 2. Move your logic into a separate internal component
+function SuccessContent() {
   const searchParams = useSearchParams();
 
   /**
@@ -24,8 +26,6 @@ export default function SuccessPage() {
   if (isError) {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center font-sans">
-
-        {/* --- ERROR ICON --- */}
         <div className="w-24 h-24 bg-red-50/80 rounded-full flex items-center justify-center mb-8 text-red-500 border border-red-100 shadow-sm">
           <XCircle size={48} strokeWidth={2} />
         </div>
@@ -38,7 +38,6 @@ export default function SuccessPage() {
           La transacción no fue aprobada.
         </p>
 
-        {/* --- HELP BOX --- */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-10 max-w-sm w-full text-left space-y-3">
           <div className="flex items-start gap-3">
             <MessageCircle size={20} className="text-zinc-400 shrink-0 mt-0.5" />
@@ -49,7 +48,6 @@ export default function SuccessPage() {
           </div>
         </div>
 
-        {/* --- CTA --- */}
         <Link
           href="/checkout"
           className="w-full max-w-sm bg-black text-white px-8 py-4 rounded-full font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95 lowercase"
@@ -61,7 +59,6 @@ export default function SuccessPage() {
     );
   }
 
-  // --- ORIGINAL SUCCESS UI ---
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center font-sans">
       <div className="w-24 h-24 bg-green-50/80 rounded-full flex items-center justify-center mb-8 text-green-500 border border-green-100 shadow-sm">
@@ -93,5 +90,18 @@ export default function SuccessPage() {
         volver al menú
       </Link>
     </main>
+  );
+}
+
+// 3. The default export wraps the content in Suspense
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-zinc-400 animate-pulse">Cargando detalles...</p>
+      </main>
+    }>
+      <SuccessContent />
+    </Suspense>
   );
 }
