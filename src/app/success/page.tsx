@@ -66,7 +66,7 @@ function SuccessContent() {
       </div>
 
       <h1 className={`text-4xl md:text-5xl text-zinc-900 mb-4 tracking-tight ${cormorant.className}`}>
-        ¡Pedido confirmado!
+        Confirmando tu pedido...
       </h1>
 
       <p className="text-zinc-500 text-lg mb-8 max-w-sm leading-relaxed font-light">
