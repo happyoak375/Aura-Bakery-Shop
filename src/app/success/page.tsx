@@ -22,7 +22,7 @@ import { Cormorant_Garamond } from 'next/font/google';
  * We load specific weights of Cormorant Garamond to match the bakery's elegant, 
  * editorial aesthetic for primary headings.
  */
-const cormorant = Cormorant_Garamond({ 
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ['500', '600']
 });
@@ -33,7 +33,7 @@ const cormorant = Cormorant_Garamond({
 export default function SuccessPage() {
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center font-sans">
-      
+
       {/* --- SUCCESS ANIMATION/ICON --- */}
       {/* Using an 80% opacity background (bg-green-50/80) keeps the UI looking soft and premium */}
       <div className="w-24 h-24 bg-green-50/80 rounded-full flex items-center justify-center mb-8 text-green-500 border border-green-100 shadow-sm">
@@ -41,11 +41,11 @@ export default function SuccessPage() {
       </div>
 
       <h1 className={`text-4xl md:text-5xl text-zinc-900 mb-4 tracking-tight lowercase ${cormorant.className}`}>
-        ¡pedido enviado!
+        ¡pedido confirmado!
       </h1>
-      
+
       <p className="text-zinc-500 text-lg mb-8 max-w-sm leading-relaxed font-light">
-        Tu orden ha sido transferida a WhatsApp. Nuestro equipo te responderá en breve para confirmar el pago y la entrega.
+        Tu pedido esta siendo procesado por nuestro equipo.  Te enviaremos los detalles por el WhatsApp registrado.
       </p>
 
       {/* --- UX EDGE-CASE MITIGATION --- */}
@@ -57,21 +57,21 @@ export default function SuccessPage() {
         <div className="flex items-start gap-3">
           <MessageCircle size={20} className="text-green-500 shrink-0 mt-0.5" />
           <p className="text-sm text-zinc-600 font-light leading-relaxed">
-            Si cerraste WhatsApp por accidente, no te preocupes. Vuelve a armar tu carrito rápidamente en el menú.
+            Si necesitas hacer algún cambio o solicitud especial, puedes escribirnos: +57 317 328 5832
           </p>
         </div>
       </div>
 
       {/* --- CALL TO ACTION (CTA) --- */}
       {/* Lowercase text matches the brand's modern, minimalist style */}
-      <Link 
-        href="/menu" 
+      <Link
+        href="/menu"
         className="w-full max-w-sm bg-black text-white px-8 py-4 rounded-full font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95 lowercase"
       >
         <ArrowLeft size={18} />
         volver al menú
       </Link>
-      
+
     </main>
   );
 }
