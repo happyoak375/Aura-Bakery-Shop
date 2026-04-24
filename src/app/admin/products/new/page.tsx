@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Trash2, Save, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Image as ImageIcon, UploadCloud, Loader2 } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
-import { db } from '../../../../lib/firebase';
+import { db, storage } from '../../../../lib/firebase'; // <-- Import storage
 import { doc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'; // <-- Import storage functions
 import { AvailabilityType, ProductVariant, ProductPreference } from '../../../../lib/mockData';
 
 const cormorant = Cormorant_Garamond({
@@ -19,12 +20,16 @@ export default function NewProductPage() {
     const router = useRouter();
     const [isSaving, setIsSaving] = useState(false);
 
+    // --- ESTADO DE SUBIDA DE IMAGEN ---
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+
     // --- ESTADO DEL FORMULARIO ---
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [basePrice, setBasePrice] = useState<number | ''>('');
     const [category, setCategory] = useState('Aura Signature');
-    const [imageUrl, setImageUrl] = useState('/products/cookie-aura.jpg'); // URL por defecto
+    const [imageUrl, setImageUrl] = useState(''); // Empty default
     const [availabilityType, setAvailabilityType] = useState<AvailabilityType>('24h');
     const [isActive, setIsActive] = useState(true);
 
@@ -33,10 +38,44 @@ export default function NewProductPage() {
     const [preferences, setPreferences] = useState<ProductPreference[]>([]);
 
     // ==========================================
+    // MANEJADORES DE IMAGEN
+    // ==========================================
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+
+        // Creamos una referencia única para el archivo en Storage
+        const fileRef = ref(storage, `products/${Date.now()}_${file.name}`);
+        const uploadTask = uploadBytesResumable(fileRef, file);
+
+        uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+                // Calculamos el progreso
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(progress);
+            },
+            (error) => {
+                console.error("Error al subir la imagen:", error);
+                alert("Hubo un error al subir la imagen. Por favor intenta de nuevo.");
+                setIsUploading(false);
+            },
+            async () => {
+                // Cuando termina, obtenemos la URL pública
+                const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+                setImageUrl(downloadUrl);
+                setIsUploading(false);
+                setUploadProgress(0);
+            }
+        );
+    };
+
+    // ==========================================
     // MANEJADORES DE VARIANTES
     // ==========================================
     const addVariant = () => {
-        // Generamos un ID temporal único basado en la fecha
         setVariants([...variants, { id: `v_${Date.now()}`, name: '', price_delta: 0 }]);
     };
 
@@ -51,55 +90,40 @@ export default function NewProductPage() {
     };
 
     // ==========================================
-    // MANEJADORES DE PREFERENCIAS
-    // ==========================================
-    const addPreference = () => {
-        setPreferences([...preferences, { id: `p_${Date.now()}`, name: '', price_delta: 0 }]);
-    };
-
-    const updatePreference = (index: number, field: keyof ProductPreference, value: string | number) => {
-        const newPrefs = [...preferences];
-        newPrefs[index] = { ...newPrefs[index], [field]: value };
-        setPreferences(newPrefs);
-    };
-
-    const removePreference = (index: number) => {
-        setPreferences(preferences.filter((_, i) => i !== index));
-    };
-
-    // ==========================================
     // GUARDAR EN FIREBASE
     // ==========================================
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Prevent saving if an image is currently uploading
+        if (isUploading) {
+            alert("Por favor espera a que la imagen termine de subir.");
+            return;
+        }
+
         setIsSaving(true);
 
         try {
-            // 1. Generar un ID único para el documento (ej. "Tarta Vasca" -> "prod_tarta_vasca_123")
             const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/(^-|-$)+/g, '');
             const newProductId = `prod_${slug}_${Math.floor(Math.random() * 1000)}`;
 
-            // 2. Construir el objeto del producto final
             const newProduct = {
                 name,
                 description,
                 basePrice: Number(basePrice) || 0,
                 category,
-                imageUrl,
+                imageUrl: imageUrl || '/products/cookie-aura.jpg', // Fallback si no suben nada
                 availabilityType,
                 isActive,
                 variants,
                 preferences,
-                delivery_allowed: true, // Default para V2
-                pickup_allowed: true,   // Default para V2
+                delivery_allowed: true,
+                pickup_allowed: true,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             };
 
-            // 3. Guardar en Firestore usando setDoc con el ID que creamos
             await setDoc(doc(db, 'products', newProductId), newProduct);
-
-            // 4. Redirigir de vuelta al inventario
             router.push('/admin/products');
 
         } catch (error) {
@@ -121,8 +145,8 @@ export default function NewProductPage() {
                     <ArrowLeft size={20} />
                 </Link>
                 <div>
-                    <h1 className={`text-3xl text-zinc-900 ${cormorant.className}`}>nuevo producto</h1>
-                    <p className="text-zinc-500 text-sm lowercase mt-1">agrega una nueva delicia al menú.</p>
+                    <h1 className={`text-3xl text-zinc-900 ${cormorant.className}`}>Nuevo Producto</h1>
+                    <p className="text-zinc-500 text-sm mt-1">Agrega una nueva delicia al menú.</p>
                 </div>
             </div>
 
@@ -137,8 +161,9 @@ export default function NewProductPage() {
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">nombre del producto *</label>
                             <input
                                 type="text" required value={name} onChange={(e) => setName(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
-                                placeholder="ej: galleta red velvet"
+                                /* CSS Fix: Removed 'lowercase' so owner can type normally */
+                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
+                                placeholder="Ej: Galleta Red Velvet"
                             />
                         </div>
 
@@ -146,8 +171,9 @@ export default function NewProductPage() {
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">descripción *</label>
                             <textarea
                                 required value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all resize-none lowercase"
-                                placeholder="describe los ingredientes y la experiencia..."
+                                /* CSS Fix: Removed 'lowercase' so owner can type normally */
+                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all resize-none"
+                                placeholder="Describe los ingredientes y la experiencia..."
                             />
                         </div>
 
@@ -189,15 +215,40 @@ export default function NewProductPage() {
                             </select>
                         </div>
 
+                        {/* --- NEW: IMAGE UPLOADER --- */}
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                url de la imagen <ImageIcon size={14} />
+                                foto del producto <ImageIcon size={14} />
                             </label>
-                            <input
-                                type="text" required value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
-                                placeholder="/products/tu-imagen.jpg"
-                            />
+
+                            <div className="flex items-center gap-4">
+                                {imageUrl && (
+                                    <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden relative flex-shrink-0 border border-gray-200">
+                                        <img src={imageUrl} alt="Preview" className="object-cover w-full h-full" />
+                                    </div>
+                                )}
+
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                        disabled={isUploading}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
+                                    />
+                                    <div className={`w-full bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl px-4 py-3 flex items-center justify-center transition-all ${isUploading ? 'opacity-50' : 'hover:bg-gray-100 hover:border-gray-300'}`}>
+                                        {isUploading ? (
+                                            <div className="flex items-center gap-2 text-zinc-500 text-sm font-bold lowercase">
+                                                <Loader2 size={16} className="animate-spin" /> subiendo... {Math.round(uploadProgress)}%
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2 text-zinc-500 text-sm font-bold lowercase">
+                                                <UploadCloud size={18} /> {imageUrl ? 'cambiar imagen' : 'subir imagen'}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="md:col-span-2 pt-2">
@@ -256,7 +307,7 @@ export default function NewProductPage() {
                     <div className="max-w-4xl mx-auto flex justify-end">
                         <button
                             type="submit"
-                            disabled={isSaving}
+                            disabled={isSaving || isUploading}
                             className="bg-black text-white px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all active:scale-95 shadow-lg lowercase disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             {isSaving ? 'guardando...' : <><Save size={18} /> guardar producto</>}

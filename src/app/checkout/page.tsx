@@ -14,6 +14,7 @@ import { Cormorant_Garamond } from 'next/font/google';
 
 import { collection, getDocs, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { generateOrderNumber } from '../../lib/api';
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -89,7 +90,7 @@ function CheckoutForm() {
   }, [ENABLE_TIME_SLOTS]);
 
   const subTotal = getTotal(isDirect);
-  const deliveryFee = paymentMethod === 'wompi' && deliveryMethod === 'delivery' ? 10000 : 0;
+  const deliveryFee = deliveryMethod === 'delivery' ? 10000 : 0; // Removed Wompi restriction
   const finalTotal = subTotal + deliveryFee;
 
   useEffect(() => {
@@ -112,9 +113,14 @@ function CheckoutForm() {
 
     setIsSubmitting(true);
 
+    // Open a blank tab IMMEDIATELY to avoid popup blockers from the async calls
+    const targetTab = window.open('about:blank', '_blank');
+
     try {
-      const newOrderRef = doc(collection(db, 'orders'));
-      const orderId = newOrderRef.id;
+      // Create readable order ID using the new logic
+      const orderNumber = await generateOrderNumber();
+      const orderId = `ORD-${orderNumber}`;
+      const newOrderRef = doc(db, 'orders', orderId);
 
       await runTransaction(db, async (transaction) => {
         if (ENABLE_TIME_SLOTS && timeSlot && isWompi) {
@@ -138,20 +144,21 @@ function CheckoutForm() {
 
         // GUARDAMOS EN FIREBASE LOS ITEMS CORRECTOS
         transaction.set(newOrderRef, {
+          orderNumber,
           customerName: name || 'Sin nombre',
           customerPhone: phone || 'Sin teléfono',
           deliveryMethod,
           address: deliveryMethod === 'delivery' ? address : null,
           neighborhood: deliveryMethod === 'delivery' ? neighborhood : null,
           timeSlotId: (ENABLE_TIME_SLOTS && timeSlot) ? timeSlot : 'Por definir con asesor',
-          items: checkoutItems, // <--- Lista filtrada
+          items: checkoutItems,
           subTotal,
           deliveryFee,
           totalAmount: finalTotal,
           notes,
           paymentMethod,
           paymentStatus: 'PENDIENTE',
-          orderStatus: 'pending', // <--- Se alínea con el tablero ('pending')
+          orderStatus: 'pending',
           createdAt: serverTimestamp()
         });
       });
@@ -178,7 +185,13 @@ function CheckoutForm() {
           'redirect-url': redirectUrl,
         });
 
-        window.location.href = `https://checkout.wompi.co/p/?${params.toString()}`;
+        const targetUrl = `https://checkout.wompi.co/p/?${params.toString()}`;
+        if (targetTab) {
+          targetTab.location.href = targetUrl;
+        } else {
+          window.location.href = targetUrl; // Fallback if blocked
+        }
+        router.push('/success');
 
       } else {
         const itemsList = checkoutItems.map(item => {
@@ -191,9 +204,10 @@ function CheckoutForm() {
         }).join('\n');
 
         let message = `¡Hola Aura Bakery! Quisiera que me ayudes a completar mi pedido: \n\n`;
-        message += `*ID:* ${orderId.substring(0, 6).toUpperCase()}\n`;
+        message += `*ID:* #${orderNumber}\n`;
         message += `*MI ORDEN:*\n${itemsList}\n\n`;
         message += `*SUBTOTAL:* $${subTotal.toLocaleString('es-CO')}\n`;
+        message += `*DOMICILIO:* $${deliveryFee.toLocaleString('es-CO')}\n`;
         message += `*TOTAL:* $${finalTotal.toLocaleString('es-CO')}\n\n`;
 
         message += `*DATOS:*\n`;
@@ -204,10 +218,18 @@ function CheckoutForm() {
         const encodedMessage = encodeURIComponent(message);
         const whatsappNumber = "573173285832";
 
-        window.location.href = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+        const targetUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+
+        if (targetTab) {
+          targetTab.location.href = targetUrl;
+        } else {
+          window.location.href = targetUrl; // Fallback if blocked
+        }
+        router.push('/success');
       }
 
     } catch (error: any) {
+      if (targetTab) targetTab.close(); // Close the blank tab if we failed
       console.error("Transaction failed: ", error);
       alert(error.message || "Hubo un error al procesar tu pedido. Por favor intenta de nuevo.");
       setIsSubmitting(false);
@@ -248,165 +270,161 @@ function CheckoutForm() {
             </button>
           </div>
 
-          {paymentMethod === 'wompi' && (
-            <>
-              {/* 2. Delivery Method Toggle */}
-              <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDeliveryMethod('delivery')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors ${deliveryMethod === 'delivery' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50'
-                    }`}
-                >
-                  <MapPin size={18} /> domicilio
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeliveryMethod('pickup')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors ${deliveryMethod === 'pickup' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50'
-                    }`}
-                >
-                  <Store size={18} /> recoger
-                </button>
+          {/* 2. Delivery Method Toggle (Always Visible Now) */}
+          <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDeliveryMethod('delivery')}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors ${deliveryMethod === 'delivery' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50'
+                }`}
+            >
+              <MapPin size={18} /> domicilio
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeliveryMethod('pickup')}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors ${deliveryMethod === 'pickup' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50'
+                }`}
+            >
+              <Store size={18} /> recoger
+            </button>
+          </div>
+
+          {/* 3. Time Slot Selector (Dynamically Hidden) */}
+          {ENABLE_TIME_SLOTS && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock size={20} className="text-zinc-900" />
+                <h2 className="font-bold text-lg text-zinc-900">
+                  ventana de entrega <span className="text-red-500">*</span>
+                </h2>
               </div>
 
-              {/* 3. Time Slot Selector (Dynamically Hidden) */}
-              {ENABLE_TIME_SLOTS && (
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Clock size={20} className="text-zinc-900" />
-                    <h2 className="font-bold text-lg text-zinc-900">
-                      ventana de entrega <span className="text-red-500">*</span>
-                    </h2>
-                  </div>
+              <div className="space-y-3">
+                {isLoadingSlots ? (
+                  <div className="text-zinc-400 text-sm font-light animate-pulse">cargando horarios...</div>
+                ) : dbTimeSlots.length === 0 ? (
+                  <div className="text-red-500 text-sm font-light">no hay ventanas disponibles hoy.</div>
+                ) : (
+                  dbTimeSlots.map((slot) => {
+                    const isFull = slot.currentOrders >= slot.maxCapacity;
+                    const isAvailable = slot.isActive && !isFull;
 
-                  <div className="space-y-3">
-                    {isLoadingSlots ? (
-                      <div className="text-zinc-400 text-sm font-light animate-pulse">cargando horarios...</div>
-                    ) : dbTimeSlots.length === 0 ? (
-                      <div className="text-red-500 text-sm font-light">no hay ventanas disponibles hoy.</div>
-                    ) : (
-                      dbTimeSlots.map((slot) => {
-                        const isFull = slot.currentOrders >= slot.maxCapacity;
-                        const isAvailable = slot.isActive && !isFull;
+                    return (
+                      <label
+                        key={slot.id}
+                        className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${!isAvailable ? 'border-gray-50 bg-gray-50 opacity-60 cursor-not-allowed' :
+                          timeSlot === slot.id ? 'border-black bg-zinc-50 cursor-pointer' : 'border-gray-100 hover:border-gray-200 cursor-pointer'
+                          }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="radio"
+                            name="timeSlot"
+                            required={isWompi}
+                            value={slot.id}
+                            checked={timeSlot === slot.id}
+                            onChange={(e) => setTimeSlot(e.target.value)}
+                            disabled={!isAvailable}
+                            className="w-4 h-4 accent-black disabled:accent-gray-300"
+                          />
+                          <span className={`font-medium ${!isAvailable ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
+                            {slot.label}
+                          </span>
+                        </div>
 
-                        return (
-                          <label
-                            key={slot.id}
-                            className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${!isAvailable ? 'border-gray-50 bg-gray-50 opacity-60 cursor-not-allowed' :
-                              timeSlot === slot.id ? 'border-black bg-zinc-50 cursor-pointer' : 'border-gray-100 hover:border-gray-200 cursor-pointer'
-                              }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="radio"
-                                name="timeSlot"
-                                required={isWompi}
-                                value={slot.id}
-                                checked={timeSlot === slot.id}
-                                onChange={(e) => setTimeSlot(e.target.value)}
-                                disabled={!isAvailable}
-                                className="w-4 h-4 accent-black disabled:accent-gray-300"
-                              />
-                              <span className={`font-medium ${!isAvailable ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
-                                {slot.label}
-                              </span>
-                            </div>
+                        {!isAvailable && (
+                          <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">agotado</span>
+                        )}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
 
-                            {!isAvailable && (
-                              <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">agotado</span>
-                            )}
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
+          {/* 4. User Details Form */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+            <h2 className="font-bold text-lg text-zinc-900 mb-2">tus datos</h2>
 
-              {/* 4. User Details Form */}
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                <h2 className="font-bold text-lg text-zinc-900 mb-2">tus datos</h2>
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                nombre completo <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required={isWompi}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
+                placeholder="ej. camila rojas"
+              />
+            </div>
 
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                teléfono (whatsapp) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                required={isWompi}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
+                placeholder="+57 300 000 0000"
+              />
+            </div>
+
+            {deliveryMethod === 'delivery' ? (
+              <div className="space-y-4 pt-2 border-t border-gray-50 mt-4">
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
-                    nombre completo <span className="text-red-500">*</span>
+                    dirección de entrega <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     required={isWompi}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
-                    placeholder="ej. camila rojas"
+                    placeholder="calle, carrera, apto..."
                   />
                 </div>
-
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
-                    teléfono (whatsapp) <span className="text-red-500">*</span>
+                    barrio <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="tel"
+                    type="text"
                     required={isWompi}
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    value={neighborhood}
+                    onChange={(e) => setNeighborhood(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
-                    placeholder="+57 300 000 0000"
-                  />
-                </div>
-
-                {deliveryMethod === 'delivery' ? (
-                  <div className="space-y-4 pt-2 border-t border-gray-50 mt-4">
-                    <div>
-                      <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
-                        dirección de entrega <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required={isWompi}
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
-                        placeholder="calle, carrera, apto..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
-                        barrio <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required={isWompi}
-                        value={neighborhood}
-                        onChange={(e) => setNeighborhood(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
-                        placeholder="ej. el poblado"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-zinc-50 border border-zinc-200 p-4 rounded-xl mt-4">
-                    <p className="text-sm text-zinc-800">
-                      <span className="font-bold flex items-center gap-2 mb-1"><MapPin size={16} /> Punto de recogida:</span>
-                      Circular 73B # 39 B - 147 Primer parque de Laureles.
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-2">No se te cobrará domicilio.</p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1 mt-4">notas</label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all resize-none h-20"
-                    placeholder="detalles adicionales..."
+                    placeholder="ej. el poblado"
                   />
                 </div>
               </div>
-            </>
-          )}
+            ) : (
+              <div className="bg-zinc-50 border border-zinc-200 p-4 rounded-xl mt-4">
+                <p className="text-sm text-zinc-800">
+                  <span className="font-bold flex items-center gap-2 mb-1"><MapPin size={16} /> Punto de recogida:</span>
+                  Circular 73B # 39 B - 147 Primer parque de Laureles.
+                </p>
+                <p className="text-xs text-zinc-500 mt-2">No se te cobrará domicilio.</p>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1 mt-4">notas</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all resize-none h-20"
+                placeholder="detalles adicionales..."
+              />
+            </div>
+          </div>
 
           {/* 5. Order Summary */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -453,12 +471,13 @@ function CheckoutForm() {
               <span>Subtotal</span>
               <span>${subTotal.toLocaleString('es-CO')}</span>
             </div>
-            {paymentMethod === 'wompi' && (
-              <div className="flex justify-between text-zinc-500 text-sm mb-4">
-                <span>{deliveryMethod === 'delivery' ? 'Domicilio' : 'Recoger en tienda'}</span>
-                <span>{deliveryMethod === 'delivery' ? '+$10.000' : 'Gratis'}</span>
-              </div>
-            )}
+
+            {/* Delivery Cost is now shown regardless of payment method */}
+            <div className="flex justify-between text-zinc-500 text-sm mb-4">
+              <span>{deliveryMethod === 'delivery' ? 'Domicilio' : 'Recoger en tienda'}</span>
+              <span>{deliveryMethod === 'delivery' ? '+$10.000' : 'Gratis'}</span>
+            </div>
+
             <div className="flex justify-between font-extrabold text-zinc-900 text-xl border-t border-gray-100 pt-4">
               <span>Total</span>
               <span>${finalTotal.toLocaleString('es-CO')}</span>

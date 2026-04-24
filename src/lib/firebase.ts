@@ -8,6 +8,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
+import { getStorage } from "firebase/storage"; // <-- NEW: Imported Storage
 
 /**
  * Firebase project configuration object.
@@ -34,6 +35,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 // Initialize Core Services
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app); // <-- NEW: Initialized Storage
 
 /**
  * Initialize Firebase Analytics safely.
@@ -50,4 +52,5 @@ if (typeof window !== "undefined") {
   });
 }
 
-export { app, db, analytics, auth };
+// <-- NEW: Exported storage so other files can use it
+export { app, db, analytics, auth, storage };

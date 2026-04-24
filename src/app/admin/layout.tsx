@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import Link from 'next/link';
-import { LogOut, Package, LayoutDashboard } from 'lucide-react';
+import { LogOut, Package, LayoutDashboard, ClipboardList } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
 // ==========================================
@@ -84,6 +84,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors lowercase ${pathname === '/admin' ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
                         >
                             <LayoutDashboard size={18} /> panel
+                        </Link>
+                        <Link
+                            href="/admin/orders"
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors lowercase ${pathname.includes('/admin/orders') ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
+                        >
+                            <ClipboardList size={18} /> pedidos
                         </Link>
                         <Link
                             href="/admin/products"

@@ -1,14 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  reactCompiler: true,
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'i.ibb.co', // Only ImgBB is allowed now
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'aura-bakery-shop.firebasestorage.app',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
 };

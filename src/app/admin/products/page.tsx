@@ -29,7 +29,6 @@ export default function InventoryPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeCategory, setActiveCategory] = useState('todos');
 
-    // 1. Cargar inventario
     const loadInventory = async () => {
         setIsLoading(true);
         const data = await fetchAllProductsAdmin();
@@ -41,13 +40,10 @@ export default function InventoryPage() {
         loadInventory();
     }, []);
 
-    // 2. Acción: Alternar Visibilidad (isActive)
     const toggleStatus = async (productId: string, currentStatus: boolean) => {
         try {
             const productRef = doc(db, 'products', productId);
             await updateDoc(productRef, { isActive: !currentStatus });
-
-            // Actualizar estado local para feedback instantáneo
             setProducts(prev => prev.map(p =>
                 p.id === productId ? { ...p, isActive: !currentStatus } : p
             ));
@@ -57,10 +53,8 @@ export default function InventoryPage() {
         }
     };
 
-    // 3. Acción: Eliminar Producto
     const handleDelete = async (productId: string, productName: string) => {
         if (!window.confirm(`¿Estás seguro de eliminar "${productName}"? Esta acción no se puede deshacer.`)) return;
-
         try {
             await deleteDoc(doc(db, 'products', productId));
             setProducts(prev => prev.filter(p => p.id !== productId));
@@ -70,7 +64,6 @@ export default function InventoryPage() {
         }
     };
 
-    // 4. Lógica de Filtrado y Búsqueda
     const categories = ['todos', ...Array.from(new Set(products.map(p => p.category)))];
 
     const filteredProducts = products.filter(p => {
@@ -81,32 +74,30 @@ export default function InventoryPage() {
 
     return (
         <div className="max-w-6xl mx-auto px-8 py-10 font-sans">
-
-            {/* --- HEADER --- */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div>
-                    <h1 className={`text-4xl text-zinc-900 ${cormorant.className}`}>gestión de inventario</h1>
-                    <p className="text-zinc-500 lowercase mt-1">administra tus productos y su disponibilidad en la web.</p>
+                    {/* Removed lowercase from title */}
+                    <h1 className={`text-4xl text-zinc-900 ${cormorant.className}`}>Gestión de Inventario</h1>
+                    <p className="text-zinc-500 mt-1">Administra tus productos y su disponibilidad en la web.</p>
                 </div>
 
                 <Link
                     href="/admin/products/new"
-                    className="bg-black text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all active:scale-95 shadow-md lowercase"
+                    className="bg-black text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all active:scale-95 shadow-md"
                 >
-                    <Plus size={20} /> nuevo producto
+                    <Plus size={20} /> Nuevo Producto
                 </Link>
             </div>
 
-            {/* --- FILTROS Y BÚSQUEDA --- */}
             <div className="flex flex-col md:flex-row gap-4 mb-8">
                 <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
                     <input
                         type="text"
-                        placeholder="buscar producto..."
+                        placeholder="Buscar producto..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-white border border-gray-100 rounded-2xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-black/5 focus:border-zinc-300 transition-all lowercase"
+                        className="w-full bg-white border border-gray-100 rounded-2xl pl-12 pr-4 py-3.5 outline-none focus:ring-2 focus:ring-black/5 focus:border-zinc-300 transition-all"
                     />
                 </div>
 
@@ -115,7 +106,7 @@ export default function InventoryPage() {
                     <select
                         value={activeCategory}
                         onChange={(e) => setActiveCategory(e.target.value)}
-                        className="outline-none bg-transparent text-sm font-bold text-zinc-600 lowercase cursor-pointer"
+                        className="outline-none bg-transparent text-sm font-bold text-zinc-600 cursor-pointer"
                     >
                         {categories.map(cat => (
                             <option key={cat} value={cat}>{cat}</option>
@@ -124,13 +115,12 @@ export default function InventoryPage() {
                 </div>
             </div>
 
-            {/* --- TABLA DE PRODUCTOS --- */}
             <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
                 {isLoading ? (
                     <div className="p-20 text-center text-zinc-400 animate-pulse lowercase">cargando catálogo...</div>
                 ) : filteredProducts.length === 0 ? (
-                    <div className="p-20 text-center text-zinc-500 lowercase bg-gray-50/50">
-                        no se encontraron productos.
+                    <div className="p-20 text-center text-zinc-500 bg-gray-50/50">
+                        No se encontraron productos.
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -153,13 +143,14 @@ export default function InventoryPage() {
                                                     <img src={product.imageUrl} alt={product.name} className="object-cover w-full h-full" />
                                                 </div>
                                                 <div>
-                                                    <p className="font-bold text-zinc-900 text-sm lowercase">{product.name}</p>
-                                                    <p className="text-xs text-zinc-400 lowercase">{product.variants.length} variantes</p>
+                                                    {/* Removed lowercase class here */}
+                                                    <p className="font-bold text-zinc-900 text-sm">{product.name}</p>
+                                                    <p className="text-xs text-zinc-400">{product.variants.length} variantes</p>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="text-xs font-medium text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-lg lowercase">
+                                            <span className="text-xs font-medium text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-lg">
                                                 {product.category}
                                             </span>
                                         </td>
@@ -170,8 +161,8 @@ export default function InventoryPage() {
                                             <button
                                                 onClick={() => toggleStatus(product.id, product.isActive)}
                                                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${product.isActive
-                                                        ? 'bg-green-50 text-green-700 border border-green-100'
-                                                        : 'bg-zinc-100 text-zinc-400 border border-zinc-200'
+                                                    ? 'bg-green-50 text-green-700 border border-green-100'
+                                                    : 'bg-zinc-100 text-zinc-400 border border-zinc-200'
                                                     }`}
                                             >
                                                 {product.isActive ? <Eye size={12} /> : <EyeOff size={12} />}
@@ -201,7 +192,6 @@ export default function InventoryPage() {
                     </div>
                 )}
             </div>
-
         </div>
     );
 }
