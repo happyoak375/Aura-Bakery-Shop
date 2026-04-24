@@ -7,12 +7,13 @@
 // ==========================================
 // 1. IMPORTS
 // ==========================================
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Clock, MessageCircle, ShoppingBag, Zap } from 'lucide-react';
-import { mockProducts, ProductVariant, ProductPreference, AvailabilityType } from '../../../lib/mockData';
+import { ProductVariant, ProductPreference, AvailabilityType, Product } from '../../../lib/mockData';
 import { useCartStore } from '../../../lib/store';
+import { fetchProductById } from '../../../lib/api';
 
 // ==========================================
 // 2. HELPER FUNCTIONS
@@ -48,6 +49,13 @@ const getAvailabilityUI = (type: AvailabilityType) => {
         badgeClass: 'bg-green-100 text-green-700',
         copy: 'Diseño exclusivo y tiempos personalizados. Nuestro equipo te ayudará a coordinarlo.',
       };
+    default:
+      return {
+        badge: 'Consultar',
+        icon: <Clock size={16} className="text-gray-500" />,
+        badgeClass: 'bg-gray-100 text-gray-700',
+        copy: 'Consulta disponibilidad.',
+      };
   }
 };
 
@@ -57,21 +65,39 @@ const getAvailabilityUI = (type: AvailabilityType) => {
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { addItem } = useCartStore();
 
-  const product = mockProducts.find((p) => p.id === params.id);
+  // EXTRAEMOS LAS DOS FUNCIONES DEL STORE
+  const { addItem, setDirectPurchaseItem } = useCartStore();
 
   // --- State Management ---
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
-    product?.variants.length ? product.variants[0] : null
-  );
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [selectedPreferences, setSelectedPreferences] = useState<ProductPreference[]>([]);
 
   // UX State
   const [addedToast, setAddedToast] = useState(false);
-  // NEW: Counter state replacing the boolean to track exact local additions
   const [localItemCount, setLocalItemCount] = useState(0);
+
+  useEffect(() => {
+    const loadProduct = async () => {
+      if (!params.id) return;
+
+      const fetchedProduct = await fetchProductById(params.id as string);
+
+      if (fetchedProduct) {
+        setProduct(fetchedProduct);
+        if (fetchedProduct.variants && fetchedProduct.variants.length > 0) {
+          setSelectedVariant(fetchedProduct.variants[0]);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    loadProduct();
+  }, [params.id]);
+
 
   const currentPrice = useMemo(() => {
     if (!product) return 0;
@@ -94,10 +120,7 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     addItem(product!, selectedVariant, selectedPreferences);
     setAddedToast(true);
-
-    // NEW: Increment the local counter by 1 each click
     setLocalItemCount(prevCount => prevCount + 1);
-
     setTimeout(() => setAddedToast(false), 2000);
   };
 
@@ -110,17 +133,38 @@ export default function ProductDetailPage() {
       return;
     }
 
-    // NEW: Only push to cart if the user hasn't added anything locally yet
-    if (localItemCount === 0) {
-      addItem(product, selectedVariant, selectedPreferences);
-    }
+    // Calculamos el precio exacto
+    const variantDelta = selectedVariant ? selectedVariant.price_delta : 0;
+    const prefsDelta = selectedPreferences.reduce((sum, p) => sum + p.price_delta, 0);
+    const calculatedPrice = product.basePrice + variantDelta + prefsDelta;
 
-    router.push('/checkout');
+    // Creamos el objeto temporal para compra directa
+    const tempItem = {
+      ...product,
+      cartItemId: 'direct_purchase',
+      selectedVariant,
+      selectedPreferences,
+      calculatedPrice,
+      quantity: localItemCount > 0 ? localItemCount : 1,
+    };
+
+    // Lo guardamos en el espacio aislado y vamos al checkout
+    setDirectPurchaseItem(tempItem as any);
+    router.push('/checkout?type=direct');
   };
 
   // ==========================================
   // 4. RENDER HELPERS
   // ==========================================
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="w-10 h-10 border-4 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-zinc-500 font-medium animate-pulse">Preparando detalles...</p>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -243,7 +287,6 @@ export default function ProductDetailPage() {
 
       {/* --- STICKY ACTION BUTTONS --- */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-4 pb-6 z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-        {/* Swaps button order if localItemCount > 0 */}
         <div className={`max-w-2xl mx-auto flex flex-col gap-3 ${localItemCount > 0 ? 'flex-col-reverse' : ''}`}>
 
           {/* BUY NOW / CHECKOUT BUTTON */}
@@ -273,7 +316,6 @@ export default function ProductDetailPage() {
                 <>
                   <ShoppingBag size={20} />
                   Agregar al carrito
-                  {/* NEW: Dynamic Badge showing how many times it was added */}
                   {localItemCount > 0 && (
                     <span className="ml-1 bg-zinc-200 text-zinc-800 text-xs font-extrabold px-2 py-0.5 rounded-full">
                       {localItemCount}

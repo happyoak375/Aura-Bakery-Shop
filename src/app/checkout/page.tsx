@@ -5,8 +5,8 @@
 "use client";
 
 import { getWompiSignature } from '../actions/wompi';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, MessageCircle, MapPin, Store, Clock, CreditCard } from 'lucide-react';
 import { useCartStore } from '../../lib/store';
@@ -28,13 +28,20 @@ interface TimeSlot {
   isActive: boolean;
 }
 
-export default function CheckoutPage() {
+// Este es el componente principal que lee los parámetros y el carrito
+function CheckoutForm() {
   const router = useRouter();
-  const { items, getTotal, clearCart, updateQuantity } = useCartStore();
+  const searchParams = useSearchParams();
+  const isDirect = searchParams.get('type') === 'direct';
+
+  // Traemos todo del store, incluyendo directPurchaseItem
+  const { items, directPurchaseItem, getTotal, clearCart, updateQuantity, setDirectPurchaseItem } = useCartStore();
+
+  // MAGIC ROUTER: Decidimos qué lista renderizar y cobrar
+  const checkoutItems = isDirect ? (directPurchaseItem ? [directPurchaseItem] : []) : items;
 
   // ==========================================
   // FEATURE FLAG: Delivery Time Windows
-  // Change to 'true' when the business is ready to handle schedules again.
   // ==========================================
   const ENABLE_TIME_SLOTS = false;
 
@@ -59,7 +66,6 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
-    // Only fetch slots if the feature is enabled to save database reads
     if (!ENABLE_TIME_SLOTS) {
       setIsLoadingSlots(false);
       return;
@@ -82,24 +88,23 @@ export default function CheckoutPage() {
     fetchTimeSlots();
   }, [ENABLE_TIME_SLOTS]);
 
-  const subTotal = getTotal();
+  const subTotal = getTotal(isDirect);
   const deliveryFee = paymentMethod === 'wompi' && deliveryMethod === 'delivery' ? 10000 : 0;
   const finalTotal = subTotal + deliveryFee;
 
   useEffect(() => {
-    if (mounted && items.length === 0) {
+    if (mounted && checkoutItems.length === 0) {
       router.push('/menu');
     }
-  }, [mounted, items, router]);
+  }, [mounted, checkoutItems, router]);
 
-  if (!mounted || items.length === 0) return null;
+  if (!mounted || checkoutItems.length === 0) return null;
 
   const isWompi = paymentMethod === 'wompi';
 
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Guard bypassed if time slots are disabled
     if (ENABLE_TIME_SLOTS && isWompi && !timeSlot) {
       alert("Por favor selecciona una ventana de entrega para tu pago.");
       return;
@@ -112,7 +117,6 @@ export default function CheckoutPage() {
       const orderId = newOrderRef.id;
 
       await runTransaction(db, async (transaction) => {
-        // Only run capacity checks if the feature is active
         if (ENABLE_TIME_SLOTS && timeSlot && isWompi) {
           const timeSlotRef = doc(db, 'time_slots', timeSlot);
           const timeSlotDoc = await transaction.get(timeSlotRef);
@@ -132,6 +136,7 @@ export default function CheckoutPage() {
           });
         }
 
+        // GUARDAMOS EN FIREBASE LOS ITEMS CORRECTOS
         transaction.set(newOrderRef, {
           customerName: name || 'Sin nombre',
           customerPhone: phone || 'Sin teléfono',
@@ -139,19 +144,24 @@ export default function CheckoutPage() {
           address: deliveryMethod === 'delivery' ? address : null,
           neighborhood: deliveryMethod === 'delivery' ? neighborhood : null,
           timeSlotId: (ENABLE_TIME_SLOTS && timeSlot) ? timeSlot : 'Por definir con asesor',
-          items: items,
+          items: checkoutItems, // <--- Lista filtrada
           subTotal,
           deliveryFee,
           totalAmount: finalTotal,
           notes,
           paymentMethod,
           paymentStatus: 'PENDIENTE',
-          orderStatus: 'NUEVO',
+          orderStatus: 'pending', // <--- Se alínea con el tablero ('pending')
           createdAt: serverTimestamp()
         });
       });
 
-      clearCart();
+      // Limpiamos el store adecuado
+      if (isDirect) {
+        setDirectPurchaseItem(null);
+      } else {
+        clearCart();
+      }
 
       if (paymentMethod === 'wompi') {
         const amountInCents = Math.round(finalTotal * 100);
@@ -171,7 +181,7 @@ export default function CheckoutPage() {
         window.location.href = `https://checkout.wompi.co/p/?${params.toString()}`;
 
       } else {
-        const itemsList = items.map(item => {
+        const itemsList = checkoutItems.map(item => {
           let text = `• ${item.quantity}x ${item.name} ($${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')})`;
           if (item.selectedVariant) text += `\n  - ${item.selectedVariant.name}`;
           if (item.selectedPreferences?.length) {
@@ -194,7 +204,7 @@ export default function CheckoutPage() {
         const encodedMessage = encodeURIComponent(message);
         const whatsappNumber = "573173285832";
 
-        window.location.href = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`, '_blank';
+        window.location.href = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
       }
 
     } catch (error: any) {
@@ -205,9 +215,9 @@ export default function CheckoutPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-32 font-sans">
+    <>
       <div className="bg-white sticky top-0 z-20 border-b border-gray-100 px-6 py-4 flex items-center gap-4">
-        <Link href="/cart" className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
+        <Link href={isDirect ? "/menu" : "/cart"} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors">
           <ArrowLeft size={24} className="text-zinc-900" />
         </Link>
         <h1 className={`text-2xl text-zinc-900 ${cormorant.className}`}>finalizar pedido</h1>
@@ -403,7 +413,7 @@ export default function CheckoutPage() {
             <h3 className="font-bold text-zinc-900 mb-4">resumen</h3>
 
             <div className="space-y-4 mb-6 border-b border-gray-100 pb-4">
-              {items.map((item) => (
+              {checkoutItems.map((item) => (
                 <div key={item.cartItemId} className="flex justify-between items-center text-sm">
                   <div className="flex-1 pr-4">
                     <p className="font-medium text-zinc-900 leading-tight">{item.name}</p>
@@ -468,6 +478,21 @@ export default function CheckoutPage() {
           </button>
         </form>
       </div>
+    </>
+  );
+}
+
+// Exportamos la página envuelta en Suspense para Next.js
+export default function CheckoutPage() {
+  return (
+    <main className="min-h-screen bg-gray-50 pb-32 font-sans">
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <p className="text-zinc-500 animate-pulse text-sm">cargando método de pago...</p>
+        </div>
+      }>
+        <CheckoutForm />
+      </Suspense>
     </main>
   );
 }

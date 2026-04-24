@@ -69,6 +69,8 @@ export interface DeliveryWindow {
   date: string;
   /** If false, products requiring 24h/48h notice cannot be assigned to this window */
   is_asap_compatible: boolean;
+  /** Acts as a kill-switch to temporarily hide windows that are full or unavailable */
+  isActive: boolean; 
 }
 
 // ==========================================
@@ -297,17 +299,20 @@ export const mockWindows: DeliveryWindow[] = [
     label: "12:00 p.m. – 3:00 p.m.",
     date: "2026-03-28",
     is_asap_compatible: true,
+    isActive: true, // <-- Added this
   },
   {
     id: "win_2",
     label: "3:00 p.m. – 6:00 p.m.",
     date: "2026-03-28",
     is_asap_compatible: true,
+    isActive: true, // <-- Added this
   },
   {
     id: "win_3",
     label: "9:00 a.m. – 12:00 p.m.",
     date: "2026-03-28",
     is_asap_compatible: true,
+    isActive: true, // <-- Added this
   },
 ];

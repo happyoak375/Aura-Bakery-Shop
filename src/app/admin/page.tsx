@@ -2,18 +2,17 @@
  * @fileoverview Main Admin Dashboard Component
  * Serves as the central command hub for the bakery. It includes a real-time feed 
  * of incoming orders, a time-slot capacity manager, and a secure portal for 
- * creating new employee accounts without disrupting the current admin session.
+ * creating new employee accounts.
+ * * NOTE: Security and Layout routing are now handled by `src/app/admin/layout.tsx`.
  */
 
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { LogOut, Users, ShoppingBag, Clock } from 'lucide-react';
+import { Users, ShoppingBag, Clock } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
-import { auth, db } from '../../lib/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { db } from '../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
@@ -25,9 +24,6 @@ const cormorant = Cormorant_Garamond({
 });
 
 export default function AdminDashboard() {
-  const router = useRouter();
-
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [activeTab, setActiveTab] = useState<'orders' | 'team'>('orders');
 
   const [newEmail, setNewEmail] = useState('');
@@ -43,20 +39,8 @@ export default function AdminDashboard() {
   const allStatuses = ['NUEVO', 'CONFIRMADO', 'PREPARANDO', 'ENTREGADO', 'CANCELADO'];
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['NUEVO', 'CONFIRMADO', 'PREPARANDO']);
 
+  // Because layout.tsx handles Auth, we can fetch data immediately!
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        router.push('/admin/login');
-      } else {
-        setIsCheckingAuth(false);
-      }
-    });
-    return () => unsubscribe();
-  }, [router]);
-
-  useEffect(() => {
-    if (isCheckingAuth) return;
-
     const qOrders = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsubscribeOrders = onSnapshot(qOrders, (querySnapshot) => {
       const ordersData = querySnapshot.docs.map(doc => ({
@@ -81,12 +65,7 @@ export default function AdminDashboard() {
       unsubscribeOrders();
       unsubscribeSlots();
     };
-  }, [isCheckingAuth]);
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/admin/login');
-  };
+  }, []);
 
   const handleCreateTeamMember = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,244 +145,228 @@ export default function AdminDashboard() {
     selectedStatuses.includes(order.orderStatus || 'NUEVO')
   );
 
-  if (isCheckingAuth) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 lowercase text-zinc-400">verificando credenciales...</div>;
-  }
-
   return (
-    <main className="min-h-screen bg-gray-50 font-sans">
+    <div className="max-w-5xl mx-auto px-8 py-10 font-sans">
 
-      <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-20">
-        <h1 className={`text-2xl text-zinc-900 ${cormorant.className}`}>panel de control</h1>
+      {/* Page Title (Since we removed the top sticky nav) */}
+      <h1 className={`text-4xl text-zinc-900 mb-10 ${cormorant.className}`}>panel de control</h1>
+
+      <div className="flex gap-4 mb-8 border-b border-gray-200">
         <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 text-sm text-zinc-500 hover:text-red-500 transition-colors lowercase font-medium"
+          onClick={() => setActiveTab('orders')}
+          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium lowercase ${activeTab === 'orders' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'
+            }`}
         >
-          <LogOut size={16} /> salir
+          <ShoppingBag size={18} /> pedidos y horarios
+        </button>
+
+        <button
+          onClick={() => setActiveTab('team')}
+          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium lowercase ${activeTab === 'team' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'
+            }`}
+        >
+          <Users size={18} /> equipo
         </button>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
-
-        <div className="flex gap-4 mb-8 border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium lowercase ${activeTab === 'orders' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'
-              }`}
-          >
-            <ShoppingBag size={18} /> pedidos y horarios
-          </button>
-
-          <button
-            onClick={() => setActiveTab('team')}
-            className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium lowercase ${activeTab === 'team' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'
-              }`}
-          >
-            <Users size={18} /> equipo
-          </button>
-        </div>
-
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 min-h-[400px]">
-
-          {activeTab === 'orders' ? (
-            <div>
-              <div className="mb-10 pb-8 border-b border-gray-100">
-                <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
-                  <Clock size={20} /> gestión de horarios
-                </h2>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {timeSlots.map((slot) => (
-                    <div key={slot.id} className="bg-gray-50 border border-gray-100 p-4 rounded-2xl flex flex-col gap-3">
-                      <div className="flex justify-between items-center">
-                        <span className={`font-bold lowercase ${!slot.isActive ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
-                          {slot.label}
-                        </span>
-                        <span className="text-xs font-bold text-zinc-500 bg-white px-2 py-1 rounded-md border border-gray-100 lowercase">
-                          {slot.currentOrders} / {slot.maxCapacity} pedidos
-                        </span>
-                      </div>
-
-                      <div className="flex gap-2 mt-1">
-                        <button
-                          onClick={() => handleToggleTimeSlot(slot.id, slot.isActive)}
-                          className={`flex-1 text-xs font-bold py-2 rounded-xl transition-colors lowercase ${slot.isActive
-                              ? 'bg-white border border-gray-200 text-zinc-600 hover:bg-gray-100'
-                              : 'bg-black text-white hover:bg-zinc-800'
-                            }`}
-                        >
-                          {slot.isActive ? 'pausar horario' : 'activar horario'}
-                        </button>
-
-                        <button
-                          onClick={() => handleResetTimeSlot(slot.id)}
-                          disabled={slot.currentOrders === 0}
-                          className="flex-1 bg-white border border-gray-200 text-xs font-bold text-zinc-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 py-2 rounded-xl transition-colors lowercase disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          reiniciar a 0
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <h2 className="text-xl font-bold text-zinc-900 mb-4 lowercase flex items-center gap-2">
-                <ShoppingBag size={20} /> pedidos
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 min-h-[400px]">
+        {activeTab === 'orders' ? (
+          <div>
+            <div className="mb-10 pb-8 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
+                <Clock size={20} /> gestión de horarios
               </h2>
 
-              {/* CONTROLES DE FILTROS MÚLTIPLES */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                {allStatuses.map(status => (
-                  <button
-                    key={status}
-                    onClick={() => toggleStatus(status)}
-                    className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${selectedStatuses.includes(status)
-                        ? 'bg-black text-white border-black'
-                        : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300'
-                      }`}
-                  >
-                    {status}
-                  </button>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {timeSlots.map((slot) => (
+                  <div key={slot.id} className="bg-gray-50 border border-gray-100 p-4 rounded-2xl flex flex-col gap-3">
+                    <div className="flex justify-between items-center">
+                      <span className={`font-bold lowercase ${!slot.isActive ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
+                        {slot.label}
+                      </span>
+                      <span className="text-xs font-bold text-zinc-500 bg-white px-2 py-1 rounded-md border border-gray-100 lowercase">
+                        {slot.currentOrders} / {slot.maxCapacity} pedidos
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        onClick={() => handleToggleTimeSlot(slot.id, slot.isActive)}
+                        className={`flex-1 text-xs font-bold py-2 rounded-xl transition-colors lowercase ${slot.isActive
+                          ? 'bg-white border border-gray-200 text-zinc-600 hover:bg-gray-100'
+                          : 'bg-black text-white hover:bg-zinc-800'
+                          }`}
+                      >
+                        {slot.isActive ? 'pausar horario' : 'activar horario'}
+                      </button>
+
+                      <button
+                        onClick={() => handleResetTimeSlot(slot.id)}
+                        disabled={slot.currentOrders === 0}
+                        className="flex-1 bg-white border border-gray-200 text-xs font-bold text-zinc-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 py-2 rounded-xl transition-colors lowercase disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        reiniciar a 0
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
+            </div>
 
-              {isLoadingOrders ? (
-                <div className="text-zinc-400 lowercase animate-pulse">cargando pedidos...</div>
-              ) : filteredOrders.length === 0 ? (
-                <div className="text-zinc-500 lowercase bg-gray-50 p-6 rounded-2xl text-center border border-gray-100">
-                  no hay pedidos en los estados seleccionados.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredOrders.map((order) => (
-                    <div key={order.id} className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <p className="font-bold text-zinc-900 lowercase">{order.customerName}</p>
-                          <p className="text-xs text-zinc-500 lowercase">ID: {order.id.substring(0, 8)}...</p>
-                        </div>
+            <h2 className="text-xl font-bold text-zinc-900 mb-4 lowercase flex items-center gap-2">
+              <ShoppingBag size={20} /> pedidos
+            </h2>
 
-                        <div className="text-right flex flex-col items-end gap-2">
-                          <p className="font-bold text-zinc-900">${order.totalAmount?.toLocaleString('es-CO')}</p>
+            {/* CONTROLES DE FILTROS MÚLTIPLES */}
+            <div className="flex flex-wrap gap-2 mb-6">
+              {allStatuses.map(status => (
+                <button
+                  key={status}
+                  onClick={() => toggleStatus(status)}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${selectedStatuses.includes(status)
+                    ? 'bg-black text-white border-black shadow-sm'
+                    : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300'
+                    }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
 
-                          <div className="flex flex-col items-end gap-1.5">
-                            <div className="flex items-center gap-2">
+            {isLoadingOrders ? (
+              <div className="text-zinc-400 lowercase animate-pulse mt-8">cargando pedidos...</div>
+            ) : filteredOrders.length === 0 ? (
+              <div className="text-zinc-500 lowercase bg-gray-50 p-6 rounded-2xl text-center border border-gray-100 mt-8">
+                no hay pedidos en los estados seleccionados.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredOrders.map((order) => (
+                  <div key={order.id} className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="font-bold text-zinc-900 lowercase">{order.customerName}</p>
+                        <p className="text-xs text-zinc-500 lowercase">ID: {order.id.substring(0, 8)}...</p>
+                      </div>
 
-                              <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${order.paymentStatus === 'PAGADO' ? 'bg-green-100 text-green-700' :
-                                  order.paymentStatus === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-700' :
-                                    'bg-gray-100 text-gray-700'
-                                }`}>
-                                {order.paymentStatus}
-                              </span>
+                      <div className="text-right flex flex-col items-end gap-2">
+                        <p className="font-bold text-zinc-900">${order.totalAmount?.toLocaleString('es-CO')}</p>
 
-                              <select
-                                value={order.orderStatus || 'NUEVO'}
-                                onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                                className={`text-[10px] font-bold uppercase tracking-wider rounded-md px-2 py-1 outline-none cursor-pointer border ${(order.orderStatus || 'NUEVO') === 'NUEVO' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                    order.orderStatus === 'CONFIRMADO' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                                      order.orderStatus === 'PREPARANDO' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                                        order.orderStatus === 'ENTREGADO' ? 'bg-green-50 text-green-700 border-green-100' :
-                                          order.orderStatus === 'CANCELADO' ? 'bg-red-50 text-red-700 border-red-100' :
-                                            'bg-gray-100 text-gray-700 border-gray-200'
-                                  }`}
-                              >
-                                <option value="NUEVO">NUEVO</option>
-                                <option value="CONFIRMADO">CONFIRMADO</option>
-                                <option value="PREPARANDO">PREPARANDO</option>
-                                <option value="ENTREGADO">ENTREGADO</option>
-                                <option value="CANCELADO">CANCELADO</option>
-                              </select>
-                            </div>
+                        <div className="flex flex-col items-end gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${order.paymentStatus === 'PAGADO' ? 'bg-green-100 text-green-700' :
+                              order.paymentStatus === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                              {order.paymentStatus}
+                            </span>
 
-                            {order.paymentStatus === 'PENDIENTE' && (
-                              <button
-                                onClick={() => handleMarkAsPaid(order.id)}
-                                className="text-[10px] font-medium text-zinc-400 hover:text-green-600 transition-colors lowercase underline"
-                              >
-                                marcar como pagado
-                              </button>
-                            )}
+                            <select
+                              value={order.orderStatus || 'NUEVO'}
+                              onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                              className={`text-[10px] font-bold uppercase tracking-wider rounded-md px-2 py-1 outline-none cursor-pointer border ${(order.orderStatus || 'NUEVO') === 'NUEVO' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                order.orderStatus === 'CONFIRMADO' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
+                                  order.orderStatus === 'PREPARANDO' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                                    order.orderStatus === 'ENTREGADO' ? 'bg-green-50 text-green-700 border-green-100' :
+                                      order.orderStatus === 'CANCELADO' ? 'bg-red-50 text-red-700 border-red-100' :
+                                        'bg-gray-100 text-gray-700 border-gray-200'
+                                }`}
+                            >
+                              <option value="NUEVO">NUEVO</option>
+                              <option value="CONFIRMADO">CONFIRMADO</option>
+                              <option value="PREPARANDO">PREPARANDO</option>
+                              <option value="ENTREGADO">ENTREGADO</option>
+                              <option value="CANCELADO">CANCELADO</option>
+                            </select>
                           </div>
+
+                          {order.paymentStatus === 'PENDIENTE' && (
+                            <button
+                              onClick={() => handleMarkAsPaid(order.id)}
+                              className="text-[10px] font-medium text-zinc-400 hover:text-green-600 transition-colors lowercase underline"
+                            >
+                              marcar como pagado
+                            </button>
+                          )}
                         </div>
-                      </div>
-
-                      <div className="text-sm text-zinc-600 lowercase bg-gray-50 p-3 rounded-xl mb-3 space-y-1">
-                        <p><span className="font-semibold text-zinc-900">tel:</span> {order.customerPhone}</p>
-                        <p><span className="font-semibold text-zinc-900">método:</span> {order.deliveryMethod === 'delivery' ? 'domicilio' : 'recoger'}</p>
-                        {order.deliveryMethod === 'delivery' && (
-                          <p><span className="font-semibold text-zinc-900">dirección:</span> {order.address}, {order.neighborhood}</p>
-                        )}
-                        {order.notes && (
-                          <p><span className="font-semibold text-zinc-900">notas:</span> {order.notes}</p>
-                        )}
-                      </div>
-
-                      <div className="border-t border-gray-100 pt-3">
-                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">productos</p>
-                        <ul className="text-sm text-zinc-700 lowercase space-y-1">
-                          {order.items?.map((item: any, index: number) => (
-                            <li key={index}>• {item.quantity}x {item.name}</li>
-                          ))}
-                        </ul>
                       </div>
                     </div>
-                  ))}
+
+                    <div className="text-sm text-zinc-600 lowercase bg-gray-50 p-3 rounded-xl mb-3 space-y-1">
+                      <p><span className="font-semibold text-zinc-900">tel:</span> {order.customerPhone}</p>
+                      <p><span className="font-semibold text-zinc-900">método:</span> {order.deliveryMethod === 'delivery' ? 'domicilio' : 'recoger'}</p>
+                      {order.deliveryMethod === 'delivery' && (
+                        <p><span className="font-semibold text-zinc-900">dirección:</span> {order.address}, {order.neighborhood}</p>
+                      )}
+                      {order.notes && (
+                        <p><span className="font-semibold text-zinc-900">notas:</span> {order.notes}</p>
+                      )}
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-3">
+                      <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">productos</p>
+                      <ul className="text-sm text-zinc-700 lowercase space-y-1">
+                        {order.items?.map((item: any, index: number) => (
+                          <li key={index}>• {item.quantity}x {item.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="max-w-md">
+            <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
+              <Users size={20} /> agregar nuevo empleado
+            </h2>
+
+            <form onSubmit={handleCreateTeamMember} className="space-y-4">
+              {teamMessage.text && (
+                <div className={`text-sm p-3 rounded-xl border text-center lowercase ${teamMessage.type === 'success' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100'
+                  }`}>
+                  {teamMessage.text}
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="max-w-md">
-              <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
-                <Users size={20} /> agregar nuevo empleado
-              </h2>
 
-              <form onSubmit={handleCreateTeamMember} className="space-y-4">
-                {teamMessage.text && (
-                  <div className={`text-sm p-3 rounded-xl border text-center lowercase ${teamMessage.type === 'success' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100'
-                    }`}>
-                    {teamMessage.text}
-                  </div>
-                )}
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">correo electrónico</label>
+                <input
+                  type="email"
+                  required
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
+                  placeholder="empleado@aurabakery.com"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">correo electrónico</label>
-                  <input
-                    type="email"
-                    required
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
-                    placeholder="empleado@aurabakery.com"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">contraseña temporal</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
+                  placeholder="mínimo 6 caracteres"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">contraseña temporal</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
-                    placeholder="mínimo 6 caracteres"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isCreatingUser}
-                  className="w-full bg-black text-white font-bold py-3 rounded-xl transition-all hover:bg-zinc-800 active:scale-95 mt-2 lowercase disabled:opacity-70"
-                >
-                  {isCreatingUser ? 'creando cuenta...' : 'crear acceso'}
-                </button>
-              </form>
-            </div>
-          )}
-        </div>
-
+              <button
+                type="submit"
+                disabled={isCreatingUser}
+                className="w-full bg-black text-white font-bold py-3 rounded-xl transition-all hover:bg-zinc-800 active:scale-95 mt-2 lowercase disabled:opacity-70"
+              >
+                {isCreatingUser ? 'creando cuenta...' : 'crear acceso'}
+              </button>
+            </form>
+          </div>
+        )}
       </div>
-    </main>
+
+    </div>
   );
 }
