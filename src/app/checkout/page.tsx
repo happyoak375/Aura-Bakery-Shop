@@ -1,52 +1,30 @@
-/**
- * @fileoverview Secure Checkout & Order Processing
- */
-
 "use client";
 
 import { getWompiSignature } from '../actions/wompi';
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MessageCircle, MapPin, Store, Clock, CreditCard } from 'lucide-react';
+import { ArrowLeft, MessageCircle, MapPin, Store, Clock, CreditCard, AlertCircle } from 'lucide-react';
 import { useCartStore } from '../../lib/store';
 import { Cormorant_Garamond } from 'next/font/google';
 
-import { collection, getDocs, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { generateOrderNumber } from '../../lib/api';
+import { generateOrderNumber, fetchDeliveryConfig, DeliveryConfig } from '../../lib/api';
+import { getAvailableDeliveryDates } from '../../lib/deliveryLogic';
 
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ['600']
-});
+const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ['600'] });
 
-interface TimeSlot {
-  id: string;
-  label: string;
-  maxCapacity: number;
-  currentOrders: number;
-  isActive: boolean;
-}
-
-// Este es el componente principal que lee los parámetros y el carrito
 function CheckoutForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isDirect = searchParams.get('type') === 'direct';
 
-  // Traemos todo del store, incluyendo directPurchaseItem
   const { items, directPurchaseItem, getTotal, clearCart, updateQuantity, setDirectPurchaseItem } = useCartStore();
-
-  // MAGIC ROUTER: Decidimos qué lista renderizar y cobrar
   const checkoutItems = isDirect ? (directPurchaseItem ? [directPurchaseItem] : []) : items;
 
-  // ==========================================
-  // FEATURE FLAG: Delivery Time Windows
-  // ==========================================
-  const ENABLE_TIME_SLOTS = false;
-
   const [mounted, setMounted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- Customer Data State ---
   const [name, setName] = useState('');
@@ -57,40 +35,49 @@ function CheckoutForm() {
   const [notes, setNotes] = useState('');
 
   // --- Operational State ---
-  const [timeSlot, setTimeSlot] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'wompi' | 'manual'>('wompi');
 
-  // --- Database & Loading State ---
-  const [dbTimeSlots, setDbTimeSlots] = useState<TimeSlot[]>([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // --- New Dynamic Delivery State ---
+  const [deliveryConfig, setDeliveryConfig] = useState<DeliveryConfig | null>(null);
+  const [availableDates, setAvailableDates] = useState<{ dateString: string, display: string }[]>([]);
+  const [requiresAdvisor, setRequiresAdvisor] = useState(false);
 
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+
+  // Load Config & Calculate Dates
   useEffect(() => {
     setMounted(true);
-    if (!ENABLE_TIME_SLOTS) {
-      setIsLoadingSlots(false);
-      return;
-    }
 
-    const fetchTimeSlots = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'time_slots'));
-        const slotsData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as TimeSlot[];
-        setDbTimeSlots(slotsData);
-      } catch (error) {
-        console.error("Error fetching time slots:", error);
-      } finally {
-        setIsLoadingSlots(false);
+    const loadConfigAndDates = async () => {
+      const config = await fetchDeliveryConfig();
+      if (config && checkoutItems.length > 0) {
+        setDeliveryConfig(config);
+
+        // Use our new smart logic
+        const result = getAvailableDeliveryDates(checkoutItems, config);
+        setRequiresAdvisor(result.requiresAdvisor);
+        setAvailableDates(result.dates);
+
+        // Auto-select first available date if applicable
+        if (result.dates.length > 0) {
+          setSelectedDate(result.dates[0].dateString);
+        }
+
+        // Force manual payment if an item requires an advisor
+        if (result.requiresAdvisor) {
+          setPaymentMethod('manual');
+        }
       }
     };
-    fetchTimeSlots();
-  }, [ENABLE_TIME_SLOTS]);
+
+    if (checkoutItems.length > 0) {
+      loadConfigAndDates();
+    }
+  }, [checkoutItems]);
 
   const subTotal = getTotal(isDirect);
-  const deliveryFee = deliveryMethod === 'delivery' ? 10000 : 0; // Removed Wompi restriction
+  const deliveryFee = deliveryMethod === 'delivery' ? 10000 : 0;
   const finalTotal = subTotal + deliveryFee;
 
   useEffect(() => {
@@ -106,43 +93,23 @@ function CheckoutForm() {
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (ENABLE_TIME_SLOTS && isWompi && !timeSlot) {
-      alert("Por favor selecciona una ventana de entrega para tu pago.");
+    // Block submission if Wompi is chosen but no date is selected
+    if (isWompi && !requiresAdvisor && (!selectedDate || !selectedTime)) {
+      alert("Por favor selecciona una fecha y hora de entrega.");
       return;
     }
 
     setIsSubmitting(true);
-
-    // Open a blank tab IMMEDIATELY to avoid popup blockers from the async calls
     const targetTab = window.open('about:blank', '_blank');
 
     try {
-      // Create readable order ID using the new logic
       const orderNumber = await generateOrderNumber();
       const orderId = `ORD-${orderNumber}`;
       const newOrderRef = doc(db, 'orders', orderId);
 
+      const deliveryDateString = requiresAdvisor ? 'Definir con asesor' : `${selectedDate} (${selectedTime})`;
+
       await runTransaction(db, async (transaction) => {
-        if (ENABLE_TIME_SLOTS && timeSlot && isWompi) {
-          const timeSlotRef = doc(db, 'time_slots', timeSlot);
-          const timeSlotDoc = await transaction.get(timeSlotRef);
-
-          if (!timeSlotDoc.exists()) {
-            throw new Error("El horario no existe.");
-          }
-
-          const currentData = timeSlotDoc.data() as TimeSlot;
-
-          if (currentData.currentOrders >= currentData.maxCapacity) {
-            throw new Error("Lo sentimos, este horario se acaba de llenar.");
-          }
-
-          transaction.update(timeSlotRef, {
-            currentOrders: currentData.currentOrders + 1
-          });
-        }
-
-        // GUARDAMOS EN FIREBASE LOS ITEMS CORRECTOS
         transaction.set(newOrderRef, {
           orderNumber,
           customerName: name || 'Sin nombre',
@@ -150,7 +117,7 @@ function CheckoutForm() {
           deliveryMethod,
           address: deliveryMethod === 'delivery' ? address : null,
           neighborhood: deliveryMethod === 'delivery' ? neighborhood : null,
-          timeSlotId: (ENABLE_TIME_SLOTS && timeSlot) ? timeSlot : 'Por definir con asesor',
+          deliveryDate: deliveryDateString,
           items: checkoutItems,
           subTotal,
           deliveryFee,
@@ -158,17 +125,16 @@ function CheckoutForm() {
           notes,
           paymentMethod,
           paymentStatus: 'PENDIENTE',
-          orderStatus: 'pending',
+
+          // FIX: Save both statuses so the order appears in the list AND the kitchen!
+          orderStatus: 'NUEVO',
+          status: 'pending',
+
           createdAt: serverTimestamp()
         });
       });
 
-      // Limpiamos el store adecuado
-      if (isDirect) {
-        setDirectPurchaseItem(null);
-      } else {
-        clearCart();
-      }
+      if (isDirect) setDirectPurchaseItem(null); else clearCart();
 
       if (paymentMethod === 'wompi') {
         const amountInCents = Math.round(finalTotal * 100);
@@ -186,11 +152,7 @@ function CheckoutForm() {
         });
 
         const targetUrl = `https://checkout.wompi.co/p/?${params.toString()}`;
-        if (targetTab) {
-          targetTab.location.href = targetUrl;
-        } else {
-          window.location.href = targetUrl; // Fallback if blocked
-        }
+        if (targetTab) targetTab.location.href = targetUrl; else window.location.href = targetUrl;
         router.push('/success');
 
       } else {
@@ -205,6 +167,7 @@ function CheckoutForm() {
 
         let message = `¡Hola Aura Bakery! Quisiera que me ayudes a completar mi pedido: \n\n`;
         message += `*ID:* #${orderNumber}\n`;
+        message += `*CUÁNDO:* ${deliveryDateString}\n`;
         message += `*MI ORDEN:*\n${itemsList}\n\n`;
         message += `*SUBTOTAL:* $${subTotal.toLocaleString('es-CO')}\n`;
         message += `*DOMICILIO:* $${deliveryFee.toLocaleString('es-CO')}\n`;
@@ -219,17 +182,12 @@ function CheckoutForm() {
         const whatsappNumber = "573173285832";
 
         const targetUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
-
-        if (targetTab) {
-          targetTab.location.href = targetUrl;
-        } else {
-          window.location.href = targetUrl; // Fallback if blocked
-        }
+        if (targetTab) targetTab.location.href = targetUrl; else window.location.href = targetUrl;
         router.push('/success');
       }
 
     } catch (error: any) {
-      if (targetTab) targetTab.close(); // Close the blank tab if we failed
+      if (targetTab) targetTab.close();
       console.error("Transaction failed: ", error);
       alert(error.message || "Hubo un error al procesar tu pedido. Por favor intenta de nuevo.");
       setIsSubmitting(false);
@@ -252,8 +210,10 @@ function CheckoutForm() {
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
             <button
               type="button"
+              disabled={requiresAdvisor}
               onClick={() => setPaymentMethod('wompi')}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${paymentMethod === 'wompi' ? 'bg-[#002B56] text-white' : 'text-zinc-500 hover:bg-gray-50'
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${requiresAdvisor ? 'opacity-50 cursor-not-allowed bg-gray-50 text-gray-400' :
+                paymentMethod === 'wompi' ? 'bg-[#002B56] text-white' : 'text-zinc-500 hover:bg-gray-50'
                 }`}
             >
               <CreditCard size={20} />
@@ -270,7 +230,7 @@ function CheckoutForm() {
             </button>
           </div>
 
-          {/* 2. Delivery Method Toggle (Always Visible Now) */}
+          {/* 2. Delivery Method Toggle */}
           <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-2">
             <button
               type="button"
@@ -290,87 +250,75 @@ function CheckoutForm() {
             </button>
           </div>
 
-          {/* 3. Time Slot Selector (Dynamically Hidden) */}
-          {ENABLE_TIME_SLOTS && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock size={20} className="text-zinc-900" />
-                <h2 className="font-bold text-lg text-zinc-900">
-                  ventana de entrega <span className="text-red-500">*</span>
-                </h2>
-              </div>
-
-              <div className="space-y-3">
-                {isLoadingSlots ? (
-                  <div className="text-zinc-400 text-sm font-light animate-pulse">cargando horarios...</div>
-                ) : dbTimeSlots.length === 0 ? (
-                  <div className="text-red-500 text-sm font-light">no hay ventanas disponibles hoy.</div>
-                ) : (
-                  dbTimeSlots.map((slot) => {
-                    const isFull = slot.currentOrders >= slot.maxCapacity;
-                    const isAvailable = slot.isActive && !isFull;
-
-                    return (
-                      <label
-                        key={slot.id}
-                        className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${!isAvailable ? 'border-gray-50 bg-gray-50 opacity-60 cursor-not-allowed' :
-                          timeSlot === slot.id ? 'border-black bg-zinc-50 cursor-pointer' : 'border-gray-100 hover:border-gray-200 cursor-pointer'
-                          }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="radio"
-                            name="timeSlot"
-                            required={isWompi}
-                            value={slot.id}
-                            checked={timeSlot === slot.id}
-                            onChange={(e) => setTimeSlot(e.target.value)}
-                            disabled={!isAvailable}
-                            className="w-4 h-4 accent-black disabled:accent-gray-300"
-                          />
-                          <span className={`font-medium ${!isAvailable ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
-                            {slot.label}
-                          </span>
-                        </div>
-
-                        {!isAvailable && (
-                          <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">agotado</span>
-                        )}
-                      </label>
-                    );
-                  })
-                )}
-              </div>
+          {/* 3. NEW: Smart Date & Time Picker */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock size={20} className="text-zinc-900" />
+              <h2 className="font-bold text-lg text-zinc-900">¿Cuándo lo necesitas?</h2>
             </div>
-          )}
+
+            {requiresAdvisor ? (
+              <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl flex gap-3">
+                <AlertCircle className="text-orange-500 flex-shrink-0" size={20} />
+                <p className="text-sm text-orange-800">
+                  Tu pedido incluye productos personalizados que requieren validación. Por favor, completa tus datos y te contactaremos por WhatsApp para coordinar la entrega.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Date Dropdown */}
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">Fecha disponible <span className="text-red-500">*</span></label>
+                  <select
+                    required={isWompi}
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer capitalize"
+                  >
+                    <option value="" disabled>Selecciona un día...</option>
+                    {availableDates.map(date => (
+                      <option key={date.dateString} value={date.dateString}>
+                        {date.display}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Time Dropdown (Standard Shifts) */}
+                <div>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">Jornada <span className="text-red-500">*</span></label>
+                  <select
+                    required={isWompi}
+                    value={selectedTime}
+                    onChange={(e) => setSelectedTime(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer"
+                  >
+                    <option value="" disabled>Selecciona una jornada...</option>
+                    <option value="Mañana (8:00 AM - 12:00 PM)">Mañana (8:00 AM - 12:00 PM)</option>
+                    <option value="Tarde (1:00 PM - 5:00 PM)">Tarde (1:00 PM - 5:00 PM)</option>
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* 4. User Details Form */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
             <h2 className="font-bold text-lg text-zinc-900 mb-2">tus datos</h2>
 
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
-                nombre completo <span className="text-red-500">*</span>
-              </label>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">nombre completo <span className="text-red-500">*</span></label>
               <input
-                type="text"
-                required={isWompi}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                type="text" required={isWompi} value={name} onChange={(e) => setName(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
                 placeholder="ej. camila rojas"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
-                teléfono (whatsapp) <span className="text-red-500">*</span>
-              </label>
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">teléfono (whatsapp) <span className="text-red-500">*</span></label>
               <input
-                type="tel"
-                required={isWompi}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                type="tel" required={isWompi} value={phone} onChange={(e) => setPhone(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
                 placeholder="+57 300 000 0000"
               />
@@ -379,27 +327,17 @@ function CheckoutForm() {
             {deliveryMethod === 'delivery' ? (
               <div className="space-y-4 pt-2 border-t border-gray-50 mt-4">
                 <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
-                    dirección de entrega <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">dirección de entrega <span className="text-red-500">*</span></label>
                   <input
-                    type="text"
-                    required={isWompi}
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
+                    type="text" required={isWompi} value={address} onChange={(e) => setAddress(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
                     placeholder="calle, carrera, apto..."
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
-                    barrio <span className="text-red-500">*</span>
-                  </label>
+                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">barrio <span className="text-red-500">*</span></label>
                   <input
-                    type="text"
-                    required={isWompi}
-                    value={neighborhood}
-                    onChange={(e) => setNeighborhood(e.target.value)}
+                    type="text" required={isWompi} value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
                     placeholder="ej. el poblado"
                   />
@@ -418,8 +356,7 @@ function CheckoutForm() {
             <div>
               <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1 mt-4">notas</label>
               <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                value={notes} onChange={(e) => setNotes(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all resize-none h-20"
                 placeholder="detalles adicionales..."
               />
@@ -441,23 +378,9 @@ function CheckoutForm() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center border border-gray-200 rounded-lg">
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
-                        className="px-2.5 py-1 text-zinc-500 hover:bg-gray-100 rounded-l-lg transition-colors"
-                      >
-                        -
-                      </button>
-                      <span className="px-2 font-medium text-zinc-900 min-w-[1.5rem] text-center text-xs">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
-                        className="px-2.5 py-1 text-zinc-500 hover:bg-gray-100 rounded-r-lg transition-colors"
-                      >
-                        +
-                      </button>
+                      <button type="button" onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)} className="px-2.5 py-1 text-zinc-500 hover:bg-gray-100 rounded-l-lg transition-colors">-</button>
+                      <span className="px-2 font-medium text-zinc-900 min-w-[1.5rem] text-center text-xs">{item.quantity}</span>
+                      <button type="button" onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)} className="px-2.5 py-1 text-zinc-500 hover:bg-gray-100 rounded-r-lg transition-colors">+</button>
                     </div>
                     <span className="font-medium text-zinc-900 min-w-[4.5rem] text-right">
                       ${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')}
@@ -468,19 +391,16 @@ function CheckoutForm() {
             </div>
 
             <div className="flex justify-between text-zinc-500 text-sm mb-2">
-              <span>Subtotal</span>
-              <span>${subTotal.toLocaleString('es-CO')}</span>
+              <span>Subtotal</span><span>${subTotal.toLocaleString('es-CO')}</span>
             </div>
 
-            {/* Delivery Cost is now shown regardless of payment method */}
             <div className="flex justify-between text-zinc-500 text-sm mb-4">
               <span>{deliveryMethod === 'delivery' ? 'Domicilio' : 'Recoger en tienda'}</span>
               <span>{deliveryMethod === 'delivery' ? '+$10.000' : 'Gratis'}</span>
             </div>
 
             <div className="flex justify-between font-extrabold text-zinc-900 text-xl border-t border-gray-100 pt-4">
-              <span>Total</span>
-              <span>${finalTotal.toLocaleString('es-CO')}</span>
+              <span>Total</span><span>${finalTotal.toLocaleString('es-CO')}</span>
             </div>
           </div>
 
@@ -501,7 +421,6 @@ function CheckoutForm() {
   );
 }
 
-// Exportamos la página envuelta en Suspense para Next.js
 export default function CheckoutPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-32 font-sans">

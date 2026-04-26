@@ -5,20 +5,14 @@ import { useRouter, usePathname } from 'next/navigation';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import Link from 'next/link';
-import { LogOut, Package, LayoutDashboard, ClipboardList } from 'lucide-react';
+import { LogOut, Package, LayoutDashboard, ClipboardList, Settings } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
-// ==========================================
-// 1. FONTS
-// ==========================================
 const cormorant = Cormorant_Garamond({
     subsets: ["latin"],
     weight: ['600']
 });
 
-// ==========================================
-// 2. MAIN LAYOUT COMPONENT
-// ==========================================
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -26,17 +20,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // Listen for Firebase login state changes
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setIsLoading(false);
 
-            // KICKOUT: If no user and they aren't on the login page, send to login
             if (!currentUser && pathname !== '/admin/login') {
                 router.push('/admin/login');
             }
 
-            // REDIRECT: If logged in but trying to view the login page, send to dashboard
             if (currentUser && pathname === '/admin/login') {
                 router.push('/admin');
             }
@@ -50,7 +41,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         router.push('/admin/login');
     };
 
-    // --- STATE 1: LOADING ---
     if (isLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 lowercase text-zinc-400 font-medium">
@@ -59,20 +49,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         );
     }
 
-    // --- STATE 2: LOGIN PAGE ---
-    // If we are on the login page, render it completely naked (no sidebar)
     if (pathname === '/admin/login') {
         return <>{children}</>;
     }
 
-    // --- STATE 3: SECURE ADMIN AREA ---
-    // If we have a user, wrap the children in the sidebar layout
     if (user) {
         return (
-            <div className="min-h-screen bg-gray-50 flex font-sans">
+            <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row font-sans pb-20 md:pb-0">
 
-                {/* --- SIDEBAR --- */}
-                <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex">
+                {/* --- MOBILE TOP BAR --- */}
+                <div className="md:hidden bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
+                    <h2 className={`text-2xl text-zinc-900 ${cormorant.className}`}>aura admin</h2>
+                    <button onClick={handleLogout} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                        <LogOut size={20} />
+                    </button>
+                </div>
+
+                {/* --- DESKTOP SIDEBAR --- */}
+                <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex sticky top-0 h-screen">
                     <div className="p-6 border-b border-gray-100">
                         <h2 className={`text-2xl text-zinc-900 ${cormorant.className}`}>aura admin</h2>
                         <p className="text-xs text-zinc-500 truncate mt-1">{user.email}</p>
@@ -97,6 +91,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         >
                             <Package size={18} /> inventario
                         </Link>
+                        <Link
+                            href="/admin/config"
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors lowercase ${pathname.includes('/admin/config') ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
+                        >
+                            <Settings size={18} /> configuración
+                        </Link>
                     </nav>
 
                     <div className="p-4 border-t border-gray-100">
@@ -108,6 +108,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         </button>
                     </div>
                 </aside>
+
+                {/* --- MOBILE BOTTOM NAV --- */}
+                <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 flex items-center justify-around p-3 z-50 pb-safe">
+                    <Link href="/admin" className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${pathname === '/admin' ? 'text-black' : 'text-zinc-400'}`}>
+                        <LayoutDashboard size={20} />
+                        <span className="text-[10px] font-bold">panel</span>
+                    </Link>
+                    <Link href="/admin/orders" className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${pathname.includes('/admin/orders') ? 'text-black' : 'text-zinc-400'}`}>
+                        <ClipboardList size={20} />
+                        <span className="text-[10px] font-bold">cocina</span>
+                    </Link>
+                    <Link href="/admin/products" className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${pathname.includes('/admin/products') ? 'text-black' : 'text-zinc-400'}`}>
+                        <Package size={20} />
+                        <span className="text-[10px] font-bold">menú</span>
+                    </Link>
+                    <Link href="/admin/config" className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${pathname.includes('/admin/config') ? 'text-black' : 'text-zinc-400'}`}>
+                        <Settings size={20} />
+                        <span className="text-[10px] font-bold">ajustes</span>
+                    </Link>
+                </nav>
 
                 {/* --- DYNAMIC PAGE CONTENT --- */}
                 <main className="flex-1 overflow-y-auto">

@@ -1,15 +1,12 @@
 /**
  * @fileoverview Main Admin Dashboard Component
- * Serves as the central command hub for the bakery. It includes a real-time feed 
- * of incoming orders, a time-slot capacity manager, and a secure portal for 
- * creating new employee accounts.
- * * NOTE: Security and Layout routing are now handled by `src/app/admin/layout.tsx`.
  */
 
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Users, ShoppingBag, Clock } from 'lucide-react';
+import Link from 'next/link';
+import { Users, ShoppingBag, Clock, ClipboardList, Package } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
 import { db } from '../../lib/firebase';
@@ -39,7 +36,6 @@ export default function AdminDashboard() {
   const allStatuses = ['NUEVO', 'CONFIRMADO', 'PREPARANDO', 'ENTREGADO', 'CANCELADO'];
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['NUEVO', 'CONFIRMADO', 'PREPARANDO']);
 
-  // Because layout.tsx handles Auth, we can fetch data immediately!
   useEffect(() => {
     const qOrders = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsubscribeOrders = onSnapshot(qOrders, (querySnapshot) => {
@@ -148,8 +144,30 @@ export default function AdminDashboard() {
   return (
     <div className="max-w-5xl mx-auto px-8 py-10 font-sans">
 
-      {/* Page Title (Since we removed the top sticky nav) */}
-      <h1 className={`text-4xl text-zinc-900 mb-10 ${cormorant.className}`}>panel de control</h1>
+      <h1 className={`text-4xl text-zinc-900 mb-8 ${cormorant.className}`}>panel de control</h1>
+
+      {/* --- QUICK ACCESS BUTTONS --- */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
+        <Link href="/admin/orders" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-4 group">
+          <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <ClipboardList size={24} />
+          </div>
+          <div>
+            <h3 className="font-bold text-zinc-900 text-lg lowercase">tablero de cocina</h3>
+            <p className="text-zinc-500 text-sm lowercase">gestiona los pedidos activos</p>
+          </div>
+        </Link>
+
+        <Link href="/admin/products" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-4 group">
+          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Package size={24} />
+          </div>
+          <div>
+            <h3 className="font-bold text-zinc-900 text-lg lowercase">inventario</h3>
+            <p className="text-zinc-500 text-sm lowercase">agrega o edita productos</p>
+          </div>
+        </Link>
+      </div>
 
       <div className="flex gap-4 mb-8 border-b border-gray-200">
         <button
@@ -157,7 +175,7 @@ export default function AdminDashboard() {
           className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium lowercase ${activeTab === 'orders' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'
             }`}
         >
-          <ShoppingBag size={18} /> pedidos y horarios
+          <ShoppingBag size={18} /> listado de pedidos
         </button>
 
         <button
@@ -174,7 +192,7 @@ export default function AdminDashboard() {
           <div>
             <div className="mb-10 pb-8 border-b border-gray-100">
               <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
-                <Clock size={20} /> gestión de horarios
+                <Clock size={20} /> gestión de horarios estáticos
               </h2>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -214,7 +232,7 @@ export default function AdminDashboard() {
             </div>
 
             <h2 className="text-xl font-bold text-zinc-900 mb-4 lowercase flex items-center gap-2">
-              <ShoppingBag size={20} /> pedidos
+              <ShoppingBag size={20} /> listado
             </h2>
 
             {/* CONTROLES DE FILTROS MÚLTIPLES */}
@@ -295,6 +313,7 @@ export default function AdminDashboard() {
                     <div className="text-sm text-zinc-600 lowercase bg-gray-50 p-3 rounded-xl mb-3 space-y-1">
                       <p><span className="font-semibold text-zinc-900">tel:</span> {order.customerPhone}</p>
                       <p><span className="font-semibold text-zinc-900">método:</span> {order.deliveryMethod === 'delivery' ? 'domicilio' : 'recoger'}</p>
+                      <p><span className="font-semibold text-zinc-900">fecha entrega:</span> {order.deliveryDate}</p>
                       {order.deliveryMethod === 'delivery' && (
                         <p><span className="font-semibold text-zinc-900">dirección:</span> {order.address}, {order.neighborhood}</p>
                       )}

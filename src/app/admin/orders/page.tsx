@@ -11,8 +11,8 @@ const cormorant = Cormorant_Garamond({
     weight: ['600']
 });
 
-// Tipado de nuestro Pedido
-type OrderStatus = 'pending' | 'preparing' | 'ready';
+// Tipado de nuestro Pedido (Añadido 'delivered')
+type OrderStatus = 'pending' | 'preparing' | 'ready' | 'delivered';
 
 interface OrderItem {
     name: string;
@@ -168,12 +168,20 @@ export default function KanbanBoardPage() {
 
                     <div className="space-y-3">
                         {readyOrders.map(order => (
-                            <div key={order.id} className="bg-white p-4 rounded-2xl border border-green-200 shadow-sm opacity-60 hover:opacity-100 transition-opacity">
+                            <div key={order.id} className="bg-white p-4 rounded-2xl border border-green-200 shadow-sm transition-all hover:shadow-md">
                                 <div className="flex justify-between items-start mb-3">
                                     <p className="font-bold text-zinc-900 capitalize">{order.customerName}</p>
                                     <span className="text-xs text-zinc-400">#{order.id.slice(-4)}</span>
                                 </div>
-                                <p className="text-sm text-zinc-500 lowercase">Esperando al cliente / repartidor.</p>
+                                <p className="text-sm text-zinc-500 lowercase mb-4">Esperando al cliente / repartidor.</p>
+
+                                {/* BOTÓN DE ENTREGADO AÑADIDO AQUÍ */}
+                                <button
+                                    onClick={() => moveOrder(order.id, 'delivered')}
+                                    className="w-full bg-green-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-green-700 active:scale-95 transition-all lowercase"
+                                >
+                                    marcar como entregado
+                                </button>
                             </div>
                         ))}
                         {readyOrders.length === 0 && <EmptyState text="no hay pedidos listos" />}

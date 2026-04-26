@@ -10,7 +10,36 @@ import {
 import { db } from "./firebase"; 
 import { Product, DeliveryWindow } from "./mockData";
 
-// --- NEW: Generate Sequential Order Numbers ---
+// --- NEW: Delivery Configuration Interface ---
+export interface DeliveryConfig {
+  closedDaysOfWeek: number[]; 
+  blackoutDates: string[];    
+  cutoffTime: number;         
+}
+
+// --- NEW: Fetch Delivery Config from Firestore ---
+export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
+  try {
+    const configRef = doc(db, "config", "delivery");
+    const docSnap = await getDoc(configRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data() as DeliveryConfig;
+    } else {
+      console.warn("Delivery config document not found! Using defaults.");
+      return {
+          closedDaysOfWeek: [0], // Default to closed on Sundays
+          blackoutDates: [],
+          cutoffTime: 17
+      };
+    }
+  } catch (error) {
+    console.error("Error fetching delivery config:", error);
+    return null;
+  }
+};
+
+// --- Generate Sequential Order Numbers ---
 export const generateOrderNumber = async (): Promise<number> => {
   const counterRef = doc(db, "config", "order_counter");
   
@@ -29,7 +58,7 @@ export const generateOrderNumber = async (): Promise<number> => {
   });
 };
 
-// --- NEW: Create Order with Custom ID ---
+// --- Create Order with Custom ID ---
 export const createOrder = async (orderData: any) => {
   try {
     const orderNumber = await generateOrderNumber();
