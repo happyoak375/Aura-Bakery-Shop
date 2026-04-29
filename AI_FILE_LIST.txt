@@ -1,49 +1,58 @@
-.
+▇ 
+/home/carlosq375/projects/aura-bakery-shop
+├── AI_FILE_LIST.txt
+├── README.md
+├── eslint.config.mjs
 ├── next-env.d.ts
 ├── next.config.ts
 ├── package-lock.json
 ├── package.json
+├── postcss.config.mjs
 ├── public
-│   ├── images
-│   └── products
+|  └── images
+|     ├── aura-pasteis-de-nata-banner.jpg
+|     └── logo-aura.png
 ├── src
-│   ├── app
-│   │   ├── actions
-│   │   │   └── wompi.ts
-│   │   ├── admin
-│   │   │   ├── layout.tsx
-│   │   │   ├── login
-│   │   │   ├── migrate
-│   │   │   ├── orders
-│   │   │   ├── page.tsx
-│   │   │   └── products
-│   │   ├── api
-│   │   │   └── webhook
-│   │   ├── cart
-│   │   │   └── page.tsx
-│   │   ├── checkout
-│   │   │   └── page.tsx
-│   │   ├── layout.tsx
-│   │   ├── menu
-│   │   │   ├── [id]
-│   │   │   └── page.tsx
-│   │   ├── page.tsx
-│   │   └── success
-│   │       └── page.tsx
-│   ├── components
-│   │   ├── checkout
-│   │   ├── layout
-│   │   │   ├── Header.tsx
-│   │   │   ├── Navbar.tsx
-│   │   │   └── StickyFooter.tsx
-│   │   ├── menu
-│   │   └── ui
-│   └── lib
-│       ├── api.ts
-│       ├── firebase.ts
-│       ├── mockData.ts
-│       ├── store.ts
-│       └── whatsapp.ts
+|  ├── app
+|  |  ├── actions
+|  |  |  └── wompi.ts
+|  |  ├── admin
+|  |  |  ├── config
+|  |  |  ├── layout.tsx
+|  |  |  ├── login
+|  |  |  ├── migrate
+|  |  |  ├── orders
+|  |  |  ├── page.tsx
+|  |  |  └── products
+|  |  ├── api
+|  |  |  └── webhook
+|  |  ├── cart
+|  |  |  └── page.tsx
+|  |  ├── checkout
+|  |  |  └── page.tsx
+|  |  ├── favicon.ico
+|  |  ├── globals.css
+|  |  ├── layout.tsx
+|  |  ├── menu
+|  |  |  ├── [id]
+|  |  |  └── page.tsx
+|  |  ├── page.tsx
+|  |  └── success
+|  |     └── page.tsx
+|  ├── components
+|  |  └── layout
+|  |     ├── Header.tsx
+|  |     ├── Navbar.tsx
+|  |     └── StickyFooter.tsx
+|  ├── lib
+|  |  ├── api.ts
+|  |  ├── deliveryLogic.ts
+|  |  ├── firebase.ts
+|  |  ├── mockData.ts
+|  |  ├── store.ts
+|  |  └── whatsapp.ts
+|  ├── manual.odt
+|  └── manual.pdf
 └── tsconfig.json
 
-25 directories, 22 files
+directory: 1450 file: 7031

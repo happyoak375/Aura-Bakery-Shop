@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { Settings, CalendarX, Clock, Save, Trash2, Plus, CalendarDays } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
@@ -36,7 +36,7 @@ export default function ConfigPage() {
     useEffect(() => {
         const fetchConfig = async () => {
             try {
-                const docRef = doc(db, 'config', 'delivery');
+                const docRef = doc(db, 'settings', 'delivery');
                 const docSnap = await getDoc(docRef);
 
                 if (docSnap.exists()) {
@@ -91,12 +91,15 @@ export default function ConfigPage() {
         setMessage({ type: '', text: '' });
 
         try {
-            const docRef = doc(db, 'config', 'delivery');
-            await updateDoc(docRef, {
+            const docRef = doc(db, 'settings', 'delivery');
+
+            // 🔥 REEMPLAZA updateDoc POR setDoc
+            await setDoc(docRef, {
                 cutoffTime: Number(cutoffTime),
                 closedDaysOfWeek: closedDays,
                 blackoutDates: blackoutDates
-            });
+            }, { merge: true }); // <-- ¡Esto es lo que lo arregla!
+
             setMessage({ type: 'success', text: '¡Configuración guardada exitosamente!' });
 
             // Limpiar mensaje después de 3 segundos

@@ -4,7 +4,7 @@ import { getWompiSignature } from '../actions/wompi';
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, MessageCircle, MapPin, Store, Clock, CreditCard, AlertCircle } from 'lucide-react';
+import { ArrowLeft, MessageCircle, MapPin, Store, Clock, CreditCard, AlertCircle, CalendarDays } from 'lucide-react';
 import { useCartStore } from '../../lib/store';
 import { Cormorant_Garamond } from 'next/font/google';
 
@@ -15,6 +15,7 @@ import { getAvailableDeliveryDates } from '../../lib/deliveryLogic';
 
 const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ['600'] });
 
+// 1. El componente del Formulario (Sin export default)
 function CheckoutForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -37,13 +38,20 @@ function CheckoutForm() {
   // --- Operational State ---
   const [paymentMethod, setPaymentMethod] = useState<'wompi' | 'manual'>('wompi');
 
-  // --- New Dynamic Delivery State ---
+  // --- Dynamic Delivery State ---
   const [deliveryConfig, setDeliveryConfig] = useState<DeliveryConfig | null>(null);
   const [availableDates, setAvailableDates] = useState<{ dateString: string, display: string }[]>([]);
   const [requiresAdvisor, setRequiresAdvisor] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+
+  // NEW: State for Custom Future Date
+  const [isCustomDate, setIsCustomDate] = useState(false);
+  const [customDate, setCustomDate] = useState('');
+
+  // FIX: Crear una "foto" del carrito para que React no se confunda y borre las fechas
+  const cartDependencies = JSON.stringify(checkoutItems);
 
   // Load Config & Calculate Dates
   useEffect(() => {
@@ -54,17 +62,15 @@ function CheckoutForm() {
       if (config && checkoutItems.length > 0) {
         setDeliveryConfig(config);
 
-        // Use our new smart logic
         const result = getAvailableDeliveryDates(checkoutItems, config);
         setRequiresAdvisor(result.requiresAdvisor);
         setAvailableDates(result.dates);
 
-        // Auto-select first available date if applicable
+        // FIX: Solo asignar la fecha si el usuario no ha escogido una
         if (result.dates.length > 0) {
-          setSelectedDate(result.dates[0].dateString);
+          setSelectedDate(prev => prev ? prev : result.dates[0].dateString);
         }
 
-        // Force manual payment if an item requires an advisor
         if (result.requiresAdvisor) {
           setPaymentMethod('manual');
         }
@@ -74,7 +80,7 @@ function CheckoutForm() {
     if (checkoutItems.length > 0) {
       loadConfigAndDates();
     }
-  }, [checkoutItems]);
+  }, [cartDependencies]); // Usar la dependencia corregida aquí
 
   const subTotal = getTotal(isDirect);
   const deliveryFee = deliveryMethod === 'delivery' ? 10000 : 0;
@@ -93,8 +99,10 @@ function CheckoutForm() {
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Block submission if Wompi is chosen but no date is selected
-    if (isWompi && !requiresAdvisor && (!selectedDate || !selectedTime)) {
+    // Determine the final date based on what they selected
+    const finalSelectedDate = isCustomDate ? customDate : selectedDate;
+
+    if (isWompi && !requiresAdvisor && (!finalSelectedDate || !selectedTime)) {
       alert("Por favor selecciona una fecha y hora de entrega.");
       return;
     }
@@ -107,7 +115,7 @@ function CheckoutForm() {
       const orderId = `ORD-${orderNumber}`;
       const newOrderRef = doc(db, 'orders', orderId);
 
-      const deliveryDateString = requiresAdvisor ? 'Definir con asesor' : `${selectedDate} (${selectedTime})`;
+      const deliveryDateString = requiresAdvisor ? 'Definir con asesor' : `${finalSelectedDate} (${selectedTime})`;
 
       await runTransaction(db, async (transaction) => {
         transaction.set(newOrderRef, {
@@ -125,11 +133,8 @@ function CheckoutForm() {
           notes,
           paymentMethod,
           paymentStatus: 'PENDIENTE',
-
-          // FIX: Save both statuses so the order appears in the list AND the kitchen!
           orderStatus: 'NUEVO',
           status: 'pending',
-
           createdAt: serverTimestamp()
         });
       });
@@ -250,7 +255,7 @@ function CheckoutForm() {
             </button>
           </div>
 
-          {/* 3. NEW: Smart Date & Time Picker */}
+          {/* 3. Smart Date & Time Picker */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock size={20} className="text-zinc-900" />
@@ -266,13 +271,20 @@ function CheckoutForm() {
               </div>
             ) : (
               <>
-                {/* Date Dropdown */}
+                {/* Main Date Dropdown */}
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">Fecha disponible <span className="text-red-500">*</span></label>
                   <select
-                    required={isWompi}
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    required={isWompi && !isCustomDate}
+                    value={isCustomDate ? 'custom' : selectedDate}
+                    onChange={(e) => {
+                      if (e.target.value === 'custom') {
+                        setIsCustomDate(true);
+                      } else {
+                        setIsCustomDate(false);
+                        setSelectedDate(e.target.value);
+                      }
+                    }}
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer capitalize"
                   >
                     <option value="" disabled>Selecciona un día...</option>
@@ -281,8 +293,26 @@ function CheckoutForm() {
                         {date.display}
                       </option>
                     ))}
+                    <option value="custom">📅 Otra fecha futura...</option>
                   </select>
                 </div>
+
+                {/* Custom Date Picker (Shows only if "Otra fecha futura" is selected) */}
+                {isCustomDate && (
+                  <div className="animate-in fade-in slide-in-from-top-2">
+                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1">
+                      <CalendarDays size={14} /> Selecciona tu fecha <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required={isWompi && isCustomDate}
+                      value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      min={availableDates.length > 0 ? availableDates[availableDates.length - 1].dateString : undefined}
+                      className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all text-zinc-900"
+                    />
+                  </div>
+                )}
 
                 {/* Time Dropdown (Standard Shifts) */}
                 <div>
@@ -421,6 +451,7 @@ function CheckoutForm() {
   );
 }
 
+// 2. El export default con Suspense (Esto arregla el error de compilación de Next.js)
 export default function CheckoutPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-32 font-sans">

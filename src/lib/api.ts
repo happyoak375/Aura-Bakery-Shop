@@ -20,7 +20,8 @@ export interface DeliveryConfig {
 // --- NEW: Fetch Delivery Config from Firestore ---
 export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
   try {
-    const configRef = doc(db, "config", "delivery");
+    // FIX: Changed "config" to "settings" to match your Firebase database
+    const configRef = doc(db, "settings", "delivery");
     const docSnap = await getDoc(configRef);
     
     if (docSnap.exists()) {
