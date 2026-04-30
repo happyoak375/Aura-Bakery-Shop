@@ -233,12 +233,10 @@ export default function ProductDetailPage() {
                 <label
                   key={variant.id}
                   onClick={() => setSelectedVariant(variant)}
-                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedVariant?.id === variant.id ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
-                    }`}
+                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedVariant?.id === variant.id ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200' }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedVariant?.id === variant.id ? 'border-black' : 'border-gray-300'
-                      }`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedVariant?.id === variant.id ? 'border-black' : 'border-gray-300' }`}>
                       {selectedVariant?.id === variant.id && <div className="w-2.5 h-2.5 bg-black rounded-full" />}
                     </div>
                     <span className="font-bold text-zinc-900">{variant.name}</span>
@@ -263,12 +261,10 @@ export default function ProductDetailPage() {
                   <label
                     key={pref.id}
                     onClick={() => togglePreference(pref)}
-                    className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
-                      }`}
+                    className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200' }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isSelected ? 'border-black bg-black' : 'border-gray-300'
-                        }`}>
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isSelected ? 'border-black bg-black' : 'border-gray-300' }`}>
                         {isSelected && <div className="w-2 h-2 bg-white rounded-sm" />}
                       </div>
                       <span className="font-bold text-zinc-900">{pref.name}</span>
@@ -307,8 +303,7 @@ export default function ProductDetailPage() {
           {product.availabilityType !== 'advisor_only' && (
             <button
               onClick={handleAddToCart}
-              className={`w-full text-lg font-bold py-3.5 rounded-full flex items-center justify-center gap-2 transition-all border-2 active:scale-95 ${addedToast ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-200 text-zinc-900 hover:border-black'
-                }`}
+              className={`w-full text-lg font-bold py-3.5 rounded-full flex items-center justify-center gap-2 transition-all border-2 active:scale-95 ${addedToast ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-200 text-zinc-900 hover:border-black' }`}
             >
               {addedToast ? (
                 '¡Agregado al carrito!'

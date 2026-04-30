@@ -76,7 +76,6 @@ export default function InventoryPage() {
         <div className="max-w-6xl mx-auto px-8 py-10 font-sans">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div>
-                    {/* Removed lowercase from title */}
                     <h1 className={`text-4xl text-zinc-900 ${cormorant.className}`}>Gestión de Inventario</h1>
                     <p className="text-zinc-500 mt-1">Administra tus productos y su disponibilidad en la web.</p>
                 </div>
@@ -117,7 +116,7 @@ export default function InventoryPage() {
 
             <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
                 {isLoading ? (
-                    <div className="p-20 text-center text-zinc-400 animate-pulse lowercase">cargando catálogo...</div>
+                    <div className="p-20 text-center text-zinc-400 animate-pulse">cargando catálogo...</div>
                 ) : filteredProducts.length === 0 ? (
                     <div className="p-20 text-center text-zinc-500 bg-gray-50/50">
                         No se encontraron productos.
@@ -143,7 +142,6 @@ export default function InventoryPage() {
                                                     <img src={product.imageUrl} alt={product.name} className="object-cover w-full h-full" />
                                                 </div>
                                                 <div>
-                                                    {/* Removed lowercase class here */}
                                                     <p className="font-bold text-zinc-900 text-sm">{product.name}</p>
                                                     <p className="text-xs text-zinc-400">{product.variants.length} variantes</p>
                                                 </div>
@@ -160,10 +158,7 @@ export default function InventoryPage() {
                                         <td className="px-6 py-4 text-center">
                                             <button
                                                 onClick={() => toggleStatus(product.id, product.isActive)}
-                                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${product.isActive
-                                                    ? 'bg-green-50 text-green-700 border border-green-100'
-                                                    : 'bg-zinc-100 text-zinc-400 border border-zinc-200'
-                                                    }`}
+                                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${product.isActive ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-zinc-100 text-zinc-400 border border-zinc-200' }`}
                                             >
                                                 {product.isActive ? <Eye size={12} /> : <EyeOff size={12} />}
                                                 {product.isActive ? 'activo' : 'pausado'}

@@ -126,7 +126,7 @@ export default function KanbanBoardPage() {
     const readyOrders = orders.filter(o => o.status === 'ready');
 
     if (isLoading) {
-        return <div className="min-h-screen flex items-center justify-center lowercase text-zinc-400">conectando con la cocina...</div>;
+        return <div className="min-h-screen flex items-center justify-center text-zinc-400">conectando con la cocina...</div>;
     }
 
     return (
@@ -140,7 +140,7 @@ export default function KanbanBoardPage() {
                             <AlertCircle className="text-red-600 w-12 h-12 animate-pulse" />
                         </div>
                         <h2 className={`text-4xl text-zinc-900 mb-2 ${cormorant.className}`}>¡nuevo pedido!</h2>
-                        <p className="text-zinc-500 lowercase mb-8">revisa la columna de nuevos para comenzar la preparación.</p>
+                        <p className="text-zinc-500 mb-8">revisa la columna de nuevos para comenzar la preparación.</p>
 
                         <button
                             onClick={stopAlarm}
@@ -156,7 +156,7 @@ export default function KanbanBoardPage() {
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className={`text-3xl text-zinc-900 ${cormorant.className}`}>tablero de cocina</h1>
-                    <p className="text-zinc-500 text-sm lowercase mt-1">gestiona los pedidos en tiempo real.</p>
+                    <p className="text-zinc-500 text-sm mt-1">gestiona los pedidos en tiempo real.</p>
                 </div>
                 <div className="flex gap-3">
                     <button
@@ -168,7 +168,7 @@ export default function KanbanBoardPage() {
                     </button>
                     <button
                         onClick={addTestOrder}
-                        className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 lowercase transition-colors"
+                        className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
                     >
                         <Plus size={16} /> pedido de prueba
                     </button>
@@ -229,7 +229,7 @@ export default function KanbanBoardPage() {
                                 </div>
                                 <button
                                     onClick={() => moveOrder(order.id, 'delivered')}
-                                    className="w-full bg-green-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-green-700 active:scale-95 transition-all lowercase"
+                                    className="w-full bg-green-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-green-700 active:scale-95 transition-all"
                                 >
                                     marcar como entregado [cite: 29]
                                 </button>
@@ -264,14 +264,14 @@ function OrderCard({ order, actionText, onAction }: { order: Order, actionText: 
             <div className="flex justify-between items-start mb-3 border-b border-gray-50 pb-3">
                 <div>
                     <p className="font-bold text-zinc-900 capitalize text-lg">{order.customerName}</p>
-                    <p className="text-xs text-zinc-400 lowercase">
+                    <p className="text-xs text-zinc-400">
                         {formatOrderDate(order.createdAt)} • #{order.id.slice(-4)}
                     </p>
                 </div>
             </div>
             <ul className="space-y-2 mb-4">
                 {order.items.map((item, i) => (
-                    <li key={i} className="text-sm text-zinc-600 flex items-start gap-2 lowercase">
+                    <li key={i} className="text-sm text-zinc-600 flex items-start gap-2">
                         <span className="font-bold text-zinc-900 bg-gray-100 px-1.5 rounded">{item.quantity}x</span>
                         <span>{item.name} {item.variant && <span className="text-zinc-400 text-xs ml-1">({item.variant})</span>}</span>
                     </li>
@@ -279,7 +279,7 @@ function OrderCard({ order, actionText, onAction }: { order: Order, actionText: 
             </ul>
             <button
                 onClick={onAction}
-                className="w-full bg-black text-white py-2.5 rounded-xl text-sm font-bold flex justify-center items-center gap-2 hover:bg-zinc-800 active:scale-95 transition-all lowercase"
+                className="w-full bg-black text-white py-2.5 rounded-xl text-sm font-bold flex justify-center items-center gap-2 hover:bg-zinc-800 active:scale-95 transition-all"
             >
                 {actionText} <ArrowRight size={14} />
             </button>
@@ -288,5 +288,5 @@ function OrderCard({ order, actionText, onAction }: { order: Order, actionText: 
 }
 
 function EmptyState({ text }: { text: string }) {
-    return <div className="p-6 text-center border-2 border-dashed border-zinc-200 rounded-2xl text-zinc-400 text-sm lowercase">{text}</div>;
+    return <div className="p-6 text-center border-2 border-dashed border-zinc-200 rounded-2xl text-zinc-400 text-sm">{text}</div>;
 }

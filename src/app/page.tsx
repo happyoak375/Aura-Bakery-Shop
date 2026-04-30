@@ -49,7 +49,7 @@ export default function Home() {
           </p>
           <Link
             href="/menu"
-            className="inline-block bg-white text-black px-12 py-4 rounded-full text-lg font-medium tracking-wide hover:bg-zinc-100 transition-all shadow-xl active:scale-95 lowercase"
+            className="inline-block bg-white text-black px-12 py-4 rounded-full text-lg font-medium tracking-wide hover:bg-zinc-100 transition-all shadow-xl active:scale-95"
           >
             ordenar ahora
           </Link>
@@ -86,7 +86,7 @@ export default function Home() {
       <section className="max-w-4xl mx-auto px-6 mt-16">
         <div className="flex items-center justify-between mb-8">
           <h2 className={`text-3xl text-zinc-900 ${cormorant.className}`}>Populares hoy</h2>
-          <Link href="/menu" className="text-zinc-500 font-medium lowercase tracking-wide flex items-center gap-1 hover:text-black transition-colors">
+          <Link href="/menu" className="text-zinc-500 font-medium tracking-wide flex items-center gap-1 hover:text-black transition-colors">
             ver todo <ArrowRight size={18} />
           </Link>
         </div>
@@ -110,7 +110,7 @@ export default function Home() {
                   <div className="font-medium text-zinc-900">Desde ${product.basePrice.toLocaleString('es-CO')}</div>
                 </div>
                 <div className="bg-gray-50 py-1.5 px-3 rounded-full text-zinc-900 hover:bg-black hover:text-white transition-colors border border-gray-200">
-                  <span className="text-xs font-medium lowercase whitespace-nowrap">+ agregar</span>
+                  <span className="text-xs font-medium whitespace-nowrap">+ agregar</span>
                 </div>
               </Link>
             ))

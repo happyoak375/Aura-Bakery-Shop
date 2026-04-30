@@ -1,7 +1,7 @@
 /**
  * @fileoverview Shopping Cart Page
- * Displays the user's selected items, calculates the subtotal, and provides 
- * quantity controls. It also handles the "Empty Cart" fallback state to guide 
+ * Displays the user's selected items, calculates the subtotal, and provides
+ * quantity controls. It also handles the "Empty Cart" fallback state to guide
  * users back to the catalog.
  */
 
@@ -15,7 +15,7 @@ export default function CartPage() {
   /**
    * STATE SUBSCRIPTION:
    * We destructure exactly the properties and methods we need from Zustand.
-   * By using the getTotal() method from the store, we ensure the UI always 
+   * By using the getTotal() method from the store, we ensure the UI always
    * displays the mathematically correct sum, preventing front-end pricing bugs.
    */
   const { items, removeItem, updateQuantity, getTotal } = useCartStore();
@@ -25,7 +25,7 @@ export default function CartPage() {
   // 1. EMPTY STATE RENDER
   // ==========================================
 
-  // UX Best Practice: Never leave the user at a dead end. If the cart is empty, 
+  // UX Best Practice: Never leave the user at a dead end. If the cart is empty,
   // provide a clear call-to-action (CTA) to send them back to the menu.
   if (items.length === 0) {
     return (

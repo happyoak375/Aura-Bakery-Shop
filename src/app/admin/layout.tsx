@@ -43,7 +43,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 lowercase text-zinc-400 font-medium">
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 text-zinc-400 font-medium">
                 verificando accesos...
             </div>
         );
@@ -75,25 +75,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <nav className="flex-1 p-4 space-y-2 mt-2">
                         <Link
                             href="/admin"
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors lowercase ${pathname === '/admin' ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${pathname === '/admin' ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
                         >
                             <LayoutDashboard size={18} /> panel
                         </Link>
                         <Link
                             href="/admin/orders"
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors lowercase ${pathname.includes('/admin/orders') ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${pathname.includes('/admin/orders') ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
                         >
                             <ClipboardList size={18} /> pedidos
                         </Link>
                         <Link
                             href="/admin/products"
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors lowercase ${pathname.includes('/admin/products') ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${pathname.includes('/admin/products') ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
                         >
                             <Package size={18} /> inventario
                         </Link>
                         <Link
                             href="/admin/config"
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors lowercase ${pathname.includes('/admin/config') ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${pathname.includes('/admin/config') ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
                         >
                             <Settings size={18} /> configuración
                         </Link>
@@ -102,7 +102,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <div className="p-4 border-t border-gray-100">
                         <button
                             onClick={handleLogout}
-                            className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 transition-colors lowercase"
+                            className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
                         >
                             <LogOut size={18} /> salir
                         </button>

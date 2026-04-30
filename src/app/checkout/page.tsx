@@ -218,9 +218,7 @@ function CheckoutForm() {
               type="button"
               disabled={requiresAdvisor}
               onClick={() => setPaymentMethod('wompi')}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${requiresAdvisor ? 'opacity-50 cursor-not-allowed bg-gray-50 text-gray-400' :
-                paymentMethod === 'wompi' ? 'bg-[#002B56] text-white' : 'text-zinc-500 hover:bg-gray-50'
-                }`}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${requiresAdvisor ? 'opacity-50 cursor-not-allowed bg-gray-50 text-gray-400' : paymentMethod === 'wompi' ? 'bg-[#002B56] text-white' : 'text-zinc-500 hover:bg-gray-50' }`}
             >
               <CreditCard size={20} />
               <span className="text-xs">tarjeta / pse</span>
@@ -228,8 +226,7 @@ function CheckoutForm() {
             <button
               type="button"
               onClick={() => setPaymentMethod('manual')}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${paymentMethod === 'manual' ? 'bg-[#25D366] text-white' : 'text-zinc-500 hover:bg-gray-50'
-                }`}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl font-medium transition-colors ${paymentMethod === 'manual' ? 'bg-[#25D366] text-white' : 'text-zinc-500 hover:bg-gray-50' }`}
             >
               <MessageCircle size={20} />
               <span className="text-xs">hablar con asesor</span>
@@ -241,16 +238,14 @@ function CheckoutForm() {
             <button
               type="button"
               onClick={() => setDeliveryMethod('delivery')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors ${deliveryMethod === 'delivery' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50'
-                }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors ${deliveryMethod === 'delivery' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50' }`}
             >
               <MapPin size={18} /> domicilio
             </button>
             <button
               type="button"
               onClick={() => setDeliveryMethod('pickup')}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors ${deliveryMethod === 'pickup' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50'
-                }`}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-colors ${deliveryMethod === 'pickup' ? 'bg-black text-white' : 'text-zinc-500 hover:bg-gray-50' }`}
             >
               <Store size={18} /> recoger
             </button>
@@ -440,10 +435,7 @@ function CheckoutForm() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 transition-all shadow-xl active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${paymentMethod === 'wompi'
-              ? 'bg-[#002B56] hover:bg-[#001f3e] shadow-blue-100'
-              : 'bg-[#25D366] hover:bg-[#20bd5a] shadow-green-100'
-              }`}
+            className={`w-full text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 transition-all shadow-xl active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed ${paymentMethod === 'wompi' ? 'bg-[#002B56] hover:bg-[#001f3e] shadow-blue-100' : 'bg-[#25D366] hover:bg-[#20bd5a] shadow-green-100' }`}
           >
             {isSubmitting ? 'procesando...' : paymentMethod === 'wompi' ? 'ir a pagar' : 'contáctanos por whatsapp'}
           </button>

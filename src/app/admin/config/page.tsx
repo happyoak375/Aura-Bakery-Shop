@@ -146,7 +146,7 @@ export default function ConfigPage() {
     };
 
     if (isLoading) {
-        return <div className="p-10 text-zinc-400 lowercase animate-pulse">cargando configuración...</div>;
+        return <div className="p-10 text-zinc-400 animate-pulse">cargando configuración...</div>;
     }
 
     return (
@@ -154,16 +154,16 @@ export default function ConfigPage() {
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className={`text-4xl text-zinc-900 ${cormorant.className}`}>configuración</h1>
-                    <p className="text-zinc-500 text-sm lowercase mt-1">gestiona la tienda y entregas.</p>
+                    <p className="text-zinc-500 text-sm mt-1">gestiona la tienda y entregas.</p>
                 </div>
 
-                <button onClick={handleSave} disabled={isSaving} className="bg-black text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-zinc-800 active:scale-95 transition-all lowercase disabled:opacity-50">
+                <button onClick={handleSave} disabled={isSaving} className="bg-black text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-zinc-800 active:scale-95 transition-all disabled:opacity-50">
                     <Save size={18} /> {isSaving ? 'guardando...' : 'guardar cambios'}
                 </button>
             </div>
 
             {message.text && (
-                <div className={`p-4 rounded-xl mb-6 text-sm font-bold lowercase border ${message.type === 'success' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                <div className={`p-4 rounded-xl mb-6 text-sm font-bold border ${message.type === 'success' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
                     {message.text}
                 </div>
             )}
@@ -174,8 +174,8 @@ export default function ConfigPage() {
                     <div className="flex items-center gap-3 mb-6 border-b border-gray-50 pb-4">
                         <div className="bg-yellow-50 text-yellow-600 p-2 rounded-lg"><Star size={20} /></div>
                         <div>
-                            <h2 className="font-bold text-zinc-900 text-lg lowercase">productos destacados (home)</h2>
-                            <p className="text-xs text-zinc-500 lowercase">selecciona qué productos aparecen en la página principal y su orden.</p>
+                            <h2 className="font-bold text-zinc-900 text-lg">productos destacados (home)</h2>
+                            <p className="text-xs text-zinc-500">selecciona qué productos aparecen en la página principal y su orden.</p>
                         </div>
                     </div>
 
@@ -190,7 +190,7 @@ export default function ConfigPage() {
                                 <option key={product.id} value={product.id}>{product.name}</option>
                             ))}
                         </select>
-                        <button onClick={addFeaturedProduct} disabled={!selectedProductId} className="bg-zinc-100 text-zinc-800 px-6 py-3 rounded-xl font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 lowercase">
+                        <button onClick={addFeaturedProduct} disabled={!selectedProductId} className="bg-zinc-100 text-zinc-800 px-6 py-3 rounded-xl font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2">
                             <Plus size={18} /> agregar
                         </button>
                     </div>
@@ -202,7 +202,7 @@ export default function ConfigPage() {
                             return (
                                 <div key={id} className="flex items-center gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
                                     <span className="bg-white w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-zinc-400 border border-gray-100">{index + 1}</span>
-                                    <span className="flex-1 font-bold text-zinc-800 lowercase">{product.name}</span>
+                                    <span className="flex-1 font-bold text-zinc-800">{product.name}</span>
                                     <div className="flex items-center gap-1">
                                         <button onClick={() => moveFeatured(index, 'up')} disabled={index === 0} className="p-2 hover:bg-white rounded-lg text-zinc-400 hover:text-black disabled:opacity-30"><ArrowUp size={16} /></button>
                                         <button onClick={() => moveFeatured(index, 'down')} disabled={index === featuredIds.length - 1} className="p-2 hover:bg-white rounded-lg text-zinc-400 hover:text-black disabled:opacity-30"><ArrowDown size={16} /></button>
@@ -219,8 +219,8 @@ export default function ConfigPage() {
                     <div className="flex items-center gap-3 mb-6 border-b border-gray-50 pb-4">
                         <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg"><Clock size={20} /></div>
                         <div>
-                            <h2 className="font-bold text-zinc-900 text-lg lowercase">gestión de horarios</h2>
-                            <p className="text-xs text-zinc-500 lowercase">estas jornadas aparecen para el cliente en checkout.</p>
+                            <h2 className="font-bold text-zinc-900 text-lg">gestión de horarios</h2>
+                            <p className="text-xs text-zinc-500">estas jornadas aparecen para el cliente en checkout.</p>
                         </div>
                     </div>
 
@@ -238,7 +238,7 @@ export default function ConfigPage() {
                             className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 transition-all text-zinc-700 flex-1 font-medium"
                             placeholder="ej. Noche (6:00 PM - 8:00 PM)"
                         />
-                        <button onClick={handleAddTimeSlot} disabled={!newTimeSlot.trim()} className="bg-zinc-100 text-zinc-800 px-6 py-3 rounded-xl font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 lowercase disabled:opacity-50">
+                        <button onClick={handleAddTimeSlot} disabled={!newTimeSlot.trim()} className="bg-zinc-100 text-zinc-800 px-6 py-3 rounded-xl font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 disabled:opacity-50">
                             <Plus size={18} /> agregar
                         </button>
                     </div>
@@ -260,8 +260,8 @@ export default function ConfigPage() {
                     <div className="flex items-center gap-3 mb-6 border-b border-gray-50 pb-4">
                         <div className="bg-blue-50 text-blue-600 p-2 rounded-lg"><Clock size={20} /></div>
                         <div>
-                            <h2 className="font-bold text-zinc-900 text-lg lowercase">hora límite de pedidos (corte)</h2>
-                            <p className="text-xs text-zinc-500 lowercase">los pedidos después de esta hora pasan al día siguiente.</p>
+                            <h2 className="font-bold text-zinc-900 text-lg">hora límite de pedidos (corte)</h2>
+                            <p className="text-xs text-zinc-500">los pedidos después de esta hora pasan al día siguiente.</p>
                         </div>
                     </div>
                     <select value={cutoffTime} onChange={(e) => setCutoffTime(Number(e.target.value))} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 transition-all w-48 font-bold text-zinc-700">
@@ -276,12 +276,12 @@ export default function ConfigPage() {
                     <div className="flex items-center gap-3 mb-6 border-b border-gray-50 pb-4">
                         <div className="bg-orange-50 text-orange-600 p-2 rounded-lg"><CalendarDays size={20} /></div>
                         <div>
-                            <h2 className="font-bold text-zinc-900 text-lg lowercase">días de descanso fijo</h2>
+                            <h2 className="font-bold text-zinc-900 text-lg">días de descanso fijo</h2>
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-3">
                         {DAYS_OF_WEEK.map(day => (
-                            <button key={day.id} onClick={() => toggleDay(day.id)} className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all lowercase border ${closedDays.includes(day.id) ? 'bg-orange-100 text-orange-800 border-orange-200 shadow-sm' : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300'}`}>{day.name}</button>
+                            <button key={day.id} onClick={() => toggleDay(day.id)} className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${closedDays.includes(day.id) ? 'bg-orange-100 text-orange-800 border-orange-200 shadow-sm' : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300'}`}>{day.name}</button>
                         ))}
                     </div>
                 </div>
@@ -291,12 +291,12 @@ export default function ConfigPage() {
                     <div className="flex items-center gap-3 mb-6 border-b border-gray-50 pb-4">
                         <div className="bg-red-50 text-red-600 p-2 rounded-lg"><CalendarX size={20} /></div>
                         <div>
-                            <h2 className="font-bold text-zinc-900 text-lg lowercase">días festivos y vacaciones</h2>
+                            <h2 className="font-bold text-zinc-900 text-lg">días festivos y vacaciones</h2>
                         </div>
                     </div>
                     <div className="flex gap-3 mb-6">
                         <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 transition-all text-zinc-700 flex-1 max-w-xs font-medium" />
-                        <button onClick={handleAddDate} disabled={!newDate} className="bg-zinc-100 text-zinc-800 px-6 py-3 rounded-xl font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 lowercase disabled:opacity-50"><Plus size={18} /> agregar fecha</button>
+                        <button onClick={handleAddDate} disabled={!newDate} className="bg-zinc-100 text-zinc-800 px-6 py-3 rounded-xl font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 disabled:opacity-50"><Plus size={18} /> agregar fecha</button>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                         {blackoutDates.map(date => {
@@ -304,7 +304,7 @@ export default function ConfigPage() {
                             const displayDate = dateObj.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
                             return (
                                 <div key={date} className="bg-red-50/50 border border-red-100 p-3 rounded-xl flex items-center justify-between">
-                                    <span className="text-sm font-bold text-red-900 lowercase">{displayDate}</span>
+                                    <span className="text-sm font-bold text-red-900">{displayDate}</span>
                                     <button onClick={() => handleRemoveDate(date)} className="text-red-400 hover:text-red-600 hover:bg-red-100 p-1.5 rounded-lg transition-colors"><Trash2 size={16} /></button>
                                 </div>
                             );

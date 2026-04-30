@@ -153,7 +153,7 @@ export default function EditProductPage() {
         try {
             const productRef = doc(db, 'products', params.id as string);
 
-            // Usamos updateDoc para solo sobrescribir los campos que enviamos, 
+            // Usamos updateDoc para solo sobrescribir los campos que enviamos,
             // manteniendo intacto el createdAt original y su ID.
             await updateDoc(productRef, {
                 name,
@@ -178,7 +178,7 @@ export default function EditProductPage() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 lowercase text-zinc-400 font-medium">
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 text-zinc-400 font-medium">
                 cargando detalles del producto...
             </div>
         );
@@ -212,7 +212,6 @@ export default function EditProductPage() {
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">nombre del producto *</label>
                             <input
                                 type="text" required value={name} onChange={(e) => setName(e.target.value)}
-                                /* CSS Fix: Removed 'lowercase' so owner can type normally */
                                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
                             />
                         </div>
@@ -221,7 +220,6 @@ export default function EditProductPage() {
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">descripción *</label>
                             <textarea
                                 required value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-                                /* CSS Fix: Removed 'lowercase' so owner can type normally */
                                 className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all resize-none"
                             />
                         </div>
@@ -238,7 +236,7 @@ export default function EditProductPage() {
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">categoría *</label>
                             <input
                                 type="text" required value={category} onChange={(e) => setCategory(e.target.value)}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
+                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
                             />
                         </div>
                     </div>
@@ -253,7 +251,7 @@ export default function EditProductPage() {
                             <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest ml-1">tiempo de preparación *</label>
                             <select
                                 value={availabilityType} onChange={(e) => setAvailabilityType(e.target.value as AvailabilityType)}
-                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase cursor-pointer"
+                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer"
                             >
                                 <option value="asap">para hoy (asap)</option>
                                 <option value="24h">requiere 24h</option>
@@ -285,11 +283,11 @@ export default function EditProductPage() {
                                     />
                                     <div className={`w-full bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl px-4 py-3 flex items-center justify-center transition-all ${isUploading ? 'opacity-50' : 'hover:bg-gray-100 hover:border-gray-300'}`}>
                                         {isUploading ? (
-                                            <div className="flex items-center gap-2 text-zinc-500 text-sm font-bold lowercase">
+                                            <div className="flex items-center gap-2 text-zinc-500 text-sm font-bold">
                                                 <Loader2 size={16} className="animate-spin" /> subiendo... {Math.round(uploadProgress)}%
                                             </div>
                                         ) : (
-                                            <div className="flex items-center gap-2 text-zinc-500 text-sm font-bold lowercase">
+                                            <div className="flex items-center gap-2 text-zinc-500 text-sm font-bold">
                                                 <UploadCloud size={18} /> {imageUrl ? 'cambiar imagen' : 'subir imagen'}
                                             </div>
                                         )}
@@ -304,8 +302,8 @@ export default function EditProductPage() {
                                     {isActive && <div className="w-2.5 h-2.5 bg-white rounded-sm" />}
                                 </div>
                                 <div>
-                                    <p className="font-bold text-zinc-900 text-sm lowercase">producto activo</p>
-                                    <p className="text-xs text-zinc-500 lowercase">si lo desmarcas, se ocultará de la tienda inmediatamente.</p>
+                                    <p className="font-bold text-zinc-900 text-sm">producto activo</p>
+                                    <p className="text-xs text-zinc-500">si lo desmarcas, se ocultará de la tienda inmediatamente.</p>
                                 </div>
                             </label>
                         </div>
@@ -316,13 +314,13 @@ export default function EditProductPage() {
                 <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
                     <div className="flex items-center justify-between border-b border-gray-50 pb-4">
                         <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">variantes (tamaños / opciones)</h2>
-                        <button type="button" onClick={addVariant} className="text-xs font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors lowercase">
+                        <button type="button" onClick={addVariant} className="text-xs font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors">
                             <Plus size={14} /> agregar variante
                         </button>
                     </div>
 
                     {variants.length === 0 ? (
-                        <p className="text-sm text-zinc-400 lowercase text-center py-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                        <p className="text-sm text-zinc-400 text-center py-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                             no hay variantes. el producto se venderá con el precio base.
                         </p>
                     ) : (
@@ -331,7 +329,7 @@ export default function EditProductPage() {
                                 <div key={variant.id} className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
                                     <input
                                         type="text" placeholder="nombre (ej: porción)" required value={variant.name} onChange={(e) => updateVariant(index, 'name', e.target.value)}
-                                        className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-black lowercase"
+                                        className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-black"
                                     />
                                     <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 w-32 focus-within:border-black transition-colors">
                                         <span className="text-zinc-400 text-sm">$+</span>
@@ -355,7 +353,7 @@ export default function EditProductPage() {
                         <button
                             type="submit"
                             disabled={isSaving || isUploading}
-                            className="bg-black text-white px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all active:scale-95 shadow-lg lowercase disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="bg-black text-white px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 hover:bg-zinc-800 transition-all active:scale-95 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             {isSaving ? 'guardando...' : <><Save size={18} /> guardar cambios</>}
                         </button>

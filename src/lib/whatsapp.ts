@@ -12,13 +12,13 @@ const formatCOP = (amount: number) => {
 export async function sendWhatsAppConfirmation(phone: string, orderId: string) {
   if (!token || !phoneNumberId) return;
   const cleanPhone = phone.replace(/\D/g, "");
-  
+
   const payload = {
     messaging_product: "whatsapp",
     to: cleanPhone,
     type: "template",
     template: {
-      name: "order_confirmation", 
+      name: "order_confirmation",
       language: { code: "es" },
       components: [
         {
@@ -48,7 +48,7 @@ export async function sendAdminNotification(
     to: cleanPhone,
     type: "template",
     template: {
-      name: "admin_payment_alert", 
+      name: "admin_payment_alert",
       language: { code: "es" },
       components: [
         {

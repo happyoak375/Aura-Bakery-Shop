@@ -97,10 +97,7 @@ export default function MenuPage() {
                 <button
                   key={category}
                   onClick={() => setActiveCategory(category)}
-                  className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all active:scale-95 ${activeCategory === category
-                    ? 'bg-black text-white shadow-md'
-                    : 'bg-white text-zinc-600 border border-gray-200 hover:border-gray-300'
-                    }`}
+                  className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all active:scale-95 ${activeCategory === category ? 'bg-black text-white shadow-md' : 'bg-white text-zinc-600 border border-gray-200 hover:border-gray-300' }`}
                 >
                   {category}
                 </button>

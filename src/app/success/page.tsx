@@ -17,7 +17,7 @@ function SuccessContent() {
 
   /**
    * Wompi Redirection Logic:
-   * We look for the 'status' or 'id' parameter. If the status is DECLINED, 
+   * We look for the 'status' or 'id' parameter. If the status is DECLINED,
    * VOIDED, or ERROR, we trigger the failure UI.
    */
   const status = searchParams.get('status');
@@ -50,7 +50,7 @@ function SuccessContent() {
 
         <Link
           href="/checkout"
-          className="w-full max-w-sm bg-black text-white px-8 py-4 rounded-full font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95 lowercase"
+          className="w-full max-w-sm bg-black text-white px-8 py-4 rounded-full font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95"
         >
           <RefreshCcw size={18} />
           Intentar nuevamente
@@ -84,7 +84,7 @@ function SuccessContent() {
 
       <Link
         href="/menu"
-        className="w-full max-w-sm bg-black text-white px-8 py-4 rounded-full font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95 lowercase"
+        className="w-full max-w-sm bg-black text-white px-8 py-4 rounded-full font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95"
       >
         <ArrowLeft size={18} />
         volver al menú

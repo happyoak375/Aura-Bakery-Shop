@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         if (orderSnap.exists()) {
           const orderData = orderSnap.data();
           const customerPhone = orderData.customerPhone;
-          
+
           // Using EXACT keys: customer_name and total
           const customer_name = orderData.customer_name || "Cliente";
           const totalAmount = orderData.total || 0;
@@ -64,9 +64,9 @@ export async function POST(request: Request) {
           const adminPhone = process.env.ADMIN_PHONE_NUMBER;
           if (adminPhone) {
             await sendAdminNotification(
-              adminPhone, 
-              orderId, 
-              customer_name, 
+              adminPhone,
+              orderId,
+              customer_name,
               totalAmount
             );
           }

@@ -1,7 +1,7 @@
 /**
  * @fileoverview Global Root Layout
- * This is the top-most component in the Next.js App Router. Every single page 
- * in the application is wrapped by this layout. It injects the global font, 
+ * This is the top-most component in the Next.js App Router. Every single page
+ * in the application is wrapped by this layout. It injects the global font,
  * CSS, persistent UI components, and base SEO metadata.
  */
 import type { Metadata } from "next";
@@ -42,7 +42,7 @@ export default function RootLayout({
         {/* PAGE CONTENT: Next.js injects the specific route's page component here */}
         {children}
 
-        {/* GLOBAL WHATSAPP BUTTON: 
+        {/* GLOBAL WHATSAPP BUTTON:
             Accessible from everywhere. Uses z-50 to float above content.
             Positioned slightly higher on mobile (bottom-28) so it doesn't overlap the StickyFooter.
         */}
@@ -56,9 +56,9 @@ export default function RootLayout({
           <span className="font-bold text-sm"></span>
         </a>
 
-        {/* PERSISTENT FOOTER: 
-            Since the hydration logic (checking if the cart exists) is handled securely 
-            inside the StickyFooter component itself, we can use a standard import 
+        {/* PERSISTENT FOOTER:
+            Since the hydration logic (checking if the cart exists) is handled securely
+            inside the StickyFooter component itself, we can use a standard import
             here without breaking Server-Side Rendering (SSR).
         */}
         <StickyFooter />

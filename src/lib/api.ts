@@ -1,19 +1,19 @@
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  runTransaction, 
-  setDoc, 
-  serverTimestamp 
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  runTransaction,
+  setDoc,
+  serverTimestamp
 } from "firebase/firestore";
-import { db } from "./firebase"; 
+import { db } from "./firebase";
 import { Product, DeliveryWindow } from "./mockData";
 
 // --- Delivery Configuration Interface ---
 export interface DeliveryConfig {
-  closedDaysOfWeek: number[]; 
-  blackoutDates: string[];    
+  closedDaysOfWeek: number[];
+  blackoutDates: string[];
   cutoffTime: number;
   timeSlots: string[];
 }
@@ -28,7 +28,7 @@ export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
   try {
     const configRef = doc(db, "settings", "delivery");
     const docSnap = await getDoc(configRef);
-    
+
     if (docSnap.exists()) {
       const data = docSnap.data() as Partial<DeliveryConfig>;
       return {
@@ -40,7 +40,7 @@ export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
     } else {
       console.warn("Delivery config document not found! Using defaults.");
       return {
-          closedDaysOfWeek: [0], 
+          closedDaysOfWeek: [0],
           blackoutDates: [],
           cutoffTime: 17,
           timeSlots: DEFAULT_DELIVERY_TIME_SLOTS,
@@ -69,7 +69,7 @@ export const fetchFeaturedProducts = async (): Promise<Product[]> => {
     return featuredIds
       .map(id => allProducts.find(p => p.id === id))
       .filter((p): p is Product => p !== undefined);
-      
+
   } catch (error) {
     console.error("Error fetching featured products:", error);
     return [];
@@ -79,15 +79,15 @@ export const fetchFeaturedProducts = async (): Promise<Product[]> => {
 // --- Generate Sequential Order Numbers ---
 export const generateOrderNumber = async (): Promise<number> => {
   const counterRef = doc(db, "config", "order_counter");
-  
+
   return await runTransaction(db, async (transaction) => {
     const counterDoc = await transaction.get(counterRef);
-    
+
     if (!counterDoc.exists()) {
       transaction.set(counterRef, { lastNumber: 1000 });
       return 1001;
     }
-    
+
     const newNumber = counterDoc.data().lastNumber + 1;
     transaction.update(counterRef, { lastNumber: newNumber });
     return newNumber;
@@ -99,14 +99,14 @@ export const createOrder = async (orderData: any) => {
   try {
     const orderNumber = await generateOrderNumber();
     const orderId = `ORD-${orderNumber}`;
-    
+
     await setDoc(doc(db, "orders", orderId), {
       ...orderData,
       orderNumber,
       createdAt: serverTimestamp(),
       status: 'pending'
     });
-    
+
     return { success: true, orderId };
   } catch (error) {
     console.error("Error creating order:", error);
@@ -122,7 +122,7 @@ export const fetchProducts = async (): Promise<Product[]> => {
     snapshot.forEach((doc) => {
       const data = doc.data() as Product;
       if (data.isActive) {
-        products.push({ ...data, id: doc.id }); 
+        products.push({ ...data, id: doc.id });
       }
     });
     return products;
@@ -184,7 +184,7 @@ export const fetchAllProductsAdmin = async (): Promise<Product[]> => {
     const products: Product[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data() as Product;
-      products.push({ ...data, id: doc.id }); 
+      products.push({ ...data, id: doc.id });
     });
     return products;
   } catch (error) {

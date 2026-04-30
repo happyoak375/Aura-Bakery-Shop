@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, ShoppingBag, Clock, ClipboardList, Package } from 'lucide-react';
+import { Users, ShoppingBag, ClipboardList, Package } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
 import { db } from '../../lib/firebase';
@@ -29,7 +29,6 @@ export default function AdminDashboard() {
   const [teamMessage, setTeamMessage] = useState({ type: '', text: '' });
 
   const [orders, setOrders] = useState<any[]>([]);
-  const [timeSlots, setTimeSlots] = useState<any[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
 
   // --- FILTROS DE ESTADO ---
@@ -47,19 +46,8 @@ export default function AdminDashboard() {
       setIsLoadingOrders(false);
     });
 
-    const qSlots = query(collection(db, 'time_slots'));
-    const unsubscribeSlots = onSnapshot(qSlots, (querySnapshot) => {
-      const slotsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      slotsData.sort((a, b) => a.id.localeCompare(b.id));
-      setTimeSlots(slotsData);
-    });
-
     return () => {
       unsubscribeOrders();
-      unsubscribeSlots();
     };
   }, []);
 
@@ -114,23 +102,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleToggleTimeSlot = async (slotId: string, currentStatus: boolean) => {
-    try {
-      await updateDoc(doc(db, 'time_slots', slotId), { isActive: !currentStatus });
-    } catch (error) {
-      console.error("Error toggling slot:", error);
-    }
-  };
-
-  const handleResetTimeSlot = async (slotId: string) => {
-    if (!window.confirm('¿Estás seguro de reiniciar los pedidos a 0 para este horario?')) return;
-    try {
-      await updateDoc(doc(db, 'time_slots', slotId), { currentOrders: 0 });
-    } catch (error) {
-      console.error("Error resetting slot:", error);
-    }
-  };
-
   const toggleStatus = (status: string) => {
     setSelectedStatuses(prev =>
       prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
@@ -153,8 +124,8 @@ export default function AdminDashboard() {
             <ClipboardList size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-zinc-900 text-lg lowercase">tablero de cocina</h3>
-            <p className="text-zinc-500 text-sm lowercase">gestiona los pedidos activos</p>
+            <h3 className="font-bold text-zinc-900 text-lg">tablero de cocina</h3>
+            <p className="text-zinc-500 text-sm">gestiona los pedidos activos</p>
           </div>
         </Link>
 
@@ -163,8 +134,8 @@ export default function AdminDashboard() {
             <Package size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-zinc-900 text-lg lowercase">inventario</h3>
-            <p className="text-zinc-500 text-sm lowercase">agrega o edita productos</p>
+            <h3 className="font-bold text-zinc-900 text-lg">inventario</h3>
+            <p className="text-zinc-500 text-sm">agrega o edita productos</p>
           </div>
         </Link>
       </div>
@@ -172,16 +143,14 @@ export default function AdminDashboard() {
       <div className="flex gap-4 mb-8 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('orders')}
-          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium lowercase ${activeTab === 'orders' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'
-            }`}
+          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'orders' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600' }`}
         >
           <ShoppingBag size={18} /> listado de pedidos
         </button>
 
         <button
           onClick={() => setActiveTab('team')}
-          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium lowercase ${activeTab === 'team' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'
-            }`}
+          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'team' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600' }`}
         >
           <Users size={18} /> equipo
         </button>
@@ -190,48 +159,7 @@ export default function AdminDashboard() {
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 min-h-[400px]">
         {activeTab === 'orders' ? (
           <div>
-            <div className="mb-10 pb-8 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
-                <Clock size={20} /> gestión de horarios estáticos
-              </h2>
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                {timeSlots.map((slot) => (
-                  <div key={slot.id} className="bg-gray-50 border border-gray-100 p-4 rounded-2xl flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
-                      <span className={`font-bold lowercase ${!slot.isActive ? 'text-zinc-400 line-through' : 'text-zinc-900'}`}>
-                        {slot.label}
-                      </span>
-                      <span className="text-xs font-bold text-zinc-500 bg-white px-2 py-1 rounded-md border border-gray-100 lowercase">
-                        {slot.currentOrders} / {slot.maxCapacity} pedidos
-                      </span>
-                    </div>
-
-                    <div className="flex gap-2 mt-1">
-                      <button
-                        onClick={() => handleToggleTimeSlot(slot.id, slot.isActive)}
-                        className={`flex-1 text-xs font-bold py-2 rounded-xl transition-colors lowercase ${slot.isActive
-                          ? 'bg-white border border-gray-200 text-zinc-600 hover:bg-gray-100'
-                          : 'bg-black text-white hover:bg-zinc-800'
-                          }`}
-                      >
-                        {slot.isActive ? 'pausar horario' : 'activar horario'}
-                      </button>
-
-                      <button
-                        onClick={() => handleResetTimeSlot(slot.id)}
-                        disabled={slot.currentOrders === 0}
-                        className="flex-1 bg-white border border-gray-200 text-xs font-bold text-zinc-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50 py-2 rounded-xl transition-colors lowercase disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        reiniciar a 0
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <h2 className="text-xl font-bold text-zinc-900 mb-4 lowercase flex items-center gap-2">
+            <h2 className="text-xl font-bold text-zinc-900 mb-4 flex items-center gap-2">
               <ShoppingBag size={20} /> listado
             </h2>
 
@@ -241,10 +169,7 @@ export default function AdminDashboard() {
                 <button
                   key={status}
                   onClick={() => toggleStatus(status)}
-                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${selectedStatuses.includes(status)
-                    ? 'bg-black text-white border-black shadow-sm'
-                    : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300'
-                    }`}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${selectedStatuses.includes(status) ? 'bg-black text-white border-black shadow-sm' : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300' }`}
                 >
                   {status}
                 </button>
@@ -252,9 +177,9 @@ export default function AdminDashboard() {
             </div>
 
             {isLoadingOrders ? (
-              <div className="text-zinc-400 lowercase animate-pulse mt-8">cargando pedidos...</div>
+              <div className="text-zinc-400 animate-pulse mt-8">cargando pedidos...</div>
             ) : filteredOrders.length === 0 ? (
-              <div className="text-zinc-500 lowercase bg-gray-50 p-6 rounded-2xl text-center border border-gray-100 mt-8">
+              <div className="text-zinc-500 bg-gray-50 p-6 rounded-2xl text-center border border-gray-100 mt-8">
                 no hay pedidos en los estados seleccionados.
               </div>
             ) : (
@@ -263,8 +188,8 @@ export default function AdminDashboard() {
                   <div key={order.id} className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <p className="font-bold text-zinc-900 lowercase">{order.customerName}</p>
-                        <p className="text-xs text-zinc-500 lowercase">ID: {order.id.substring(0, 8)}...</p>
+                        <p className="font-bold text-zinc-900">{order.customerName}</p>
+                        <p className="text-xs text-zinc-500">ID: {order.id.substring(0, 8)}...</p>
                       </div>
 
                       <div className="text-right flex flex-col items-end gap-2">
@@ -272,23 +197,14 @@ export default function AdminDashboard() {
 
                         <div className="flex flex-col items-end gap-1.5">
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${order.paymentStatus === 'PAGADO' ? 'bg-green-100 text-green-700' :
-                              order.paymentStatus === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-gray-100 text-gray-700'
-                              }`}>
+                            <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${order.paymentStatus === 'PAGADO' ? 'bg-green-100 text-green-700' : order.paymentStatus === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700' }`}>
                               {order.paymentStatus}
                             </span>
 
                             <select
                               value={order.orderStatus || 'NUEVO'}
                               onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                              className={`text-[10px] font-bold uppercase tracking-wider rounded-md px-2 py-1 outline-none cursor-pointer border ${(order.orderStatus || 'NUEVO') === 'NUEVO' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                order.orderStatus === 'CONFIRMADO' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
-                                  order.orderStatus === 'PREPARANDO' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                                    order.orderStatus === 'ENTREGADO' ? 'bg-green-50 text-green-700 border-green-100' :
-                                      order.orderStatus === 'CANCELADO' ? 'bg-red-50 text-red-700 border-red-100' :
-                                        'bg-gray-100 text-gray-700 border-gray-200'
-                                }`}
+                              className={`text-[10px] font-bold uppercase tracking-wider rounded-md px-2 py-1 outline-none cursor-pointer border ${(order.orderStatus || 'NUEVO') === 'NUEVO' ? 'bg-blue-50 text-blue-700 border-blue-100' : order.orderStatus === 'CONFIRMADO' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : order.orderStatus === 'PREPARANDO' ? 'bg-orange-50 text-orange-700 border-orange-100' : order.orderStatus === 'ENTREGADO' ? 'bg-green-50 text-green-700 border-green-100' : order.orderStatus === 'CANCELADO' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-gray-100 text-gray-700 border-gray-200' }`}
                             >
                               <option value="NUEVO">NUEVO</option>
                               <option value="CONFIRMADO">CONFIRMADO</option>
@@ -301,7 +217,7 @@ export default function AdminDashboard() {
                           {order.paymentStatus === 'PENDIENTE' && (
                             <button
                               onClick={() => handleMarkAsPaid(order.id)}
-                              className="text-[10px] font-medium text-zinc-400 hover:text-green-600 transition-colors lowercase underline"
+                              className="text-[10px] font-medium text-zinc-400 hover:text-green-600 transition-colors underline"
                             >
                               marcar como pagado
                             </button>
@@ -310,7 +226,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="text-sm text-zinc-600 lowercase bg-gray-50 p-3 rounded-xl mb-3 space-y-1">
+                    <div className="text-sm text-zinc-600 bg-gray-50 p-3 rounded-xl mb-3 space-y-1">
                       <p><span className="font-semibold text-zinc-900">tel:</span> {order.customerPhone}</p>
                       <p><span className="font-semibold text-zinc-900">método:</span> {order.deliveryMethod === 'delivery' ? 'domicilio' : 'recoger'}</p>
                       <p><span className="font-semibold text-zinc-900">fecha entrega:</span> {order.deliveryDate}</p>
@@ -324,7 +240,7 @@ export default function AdminDashboard() {
 
                     <div className="border-t border-gray-100 pt-3">
                       <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">productos</p>
-                      <ul className="text-sm text-zinc-700 lowercase space-y-1">
+                      <ul className="text-sm text-zinc-700 space-y-1">
                         {order.items?.map((item: any, index: number) => (
                           <li key={index}>• {item.quantity}x {item.name}</li>
                         ))}
@@ -337,14 +253,13 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <div className="max-w-md">
-            <h2 className="text-xl font-bold text-zinc-900 mb-6 lowercase flex items-center gap-2">
+            <h2 className="text-xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
               <Users size={20} /> agregar nuevo empleado
             </h2>
 
             <form onSubmit={handleCreateTeamMember} className="space-y-4">
               {teamMessage.text && (
-                <div className={`text-sm p-3 rounded-xl border text-center lowercase ${teamMessage.type === 'success' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100'
-                  }`}>
+                <div className={`text-sm p-3 rounded-xl border text-center ${teamMessage.type === 'success' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100' }`}>
                   {teamMessage.text}
                 </div>
               )}
@@ -356,7 +271,7 @@ export default function AdminDashboard() {
                   required
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all lowercase"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
                   placeholder="empleado@aurabakery.com"
                 />
               </div>
@@ -377,7 +292,7 @@ export default function AdminDashboard() {
               <button
                 type="submit"
                 disabled={isCreatingUser}
-                className="w-full bg-black text-white font-bold py-3 rounded-xl transition-all hover:bg-zinc-800 active:scale-95 mt-2 lowercase disabled:opacity-70"
+                className="w-full bg-black text-white font-bold py-3 rounded-xl transition-all hover:bg-zinc-800 active:scale-95 mt-2 disabled:opacity-70"
               >
                 {isCreatingUser ? 'creando cuenta...' : 'crear acceso'}
               </button>

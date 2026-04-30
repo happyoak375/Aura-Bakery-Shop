@@ -70,7 +70,7 @@ export interface DeliveryWindow {
   /** If false, products requiring 24h/48h notice cannot be assigned to this window */
   is_asap_compatible: boolean;
   /** Acts as a kill-switch to temporarily hide windows that are full or unavailable */
-  isActive: boolean; 
+  isActive: boolean;
 }
 
 // ==========================================

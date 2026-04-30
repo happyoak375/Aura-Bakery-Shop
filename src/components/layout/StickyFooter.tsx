@@ -1,7 +1,7 @@
 /**
  * @fileoverview Floating Cart Action Button (Sticky Footer)
- * A persistent footer that appears when items are in the cart. 
- * It gives users a constant, frictionless way to proceed to checkout 
+ * A persistent footer that appears when items are in the cart.
+ * It gives users a constant, frictionless way to proceed to checkout
  * without having to scroll back to the top navigation bar.
  */
 
@@ -24,8 +24,8 @@ export default function StickyFooter() {
 
   /**
    * HYDRATION FIX:
-   * Similar to the Header component, we wait for the client to mount before rendering 
-   * data from localStorage. The conditional check prevents infinite re-rendering 
+   * Similar to the Header component, we wait for the client to mount before rendering
+   * data from localStorage. The conditional check prevents infinite re-rendering
    * and satisfies React's exhaustive-deps linter rules.
    */
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function StickyFooter() {
    * We completely hide this floating button if:
    * 1. The cart is empty (totalItemsCount === 0).
    * 2. The user is already in the checkout pipeline (cart, checkout, or success page).
-   * 3. The user is viewing a specific product (/menu/...). This prevents 
+   * 3. The user is viewing a specific product (/menu/...). This prevents
    * overlapping with the product's own "Add to Cart" sticky button!
    */
 
@@ -60,8 +60,8 @@ export default function StickyFooter() {
   }
 
   return (
-    /* * CSS LAYOUT TRICK: 
-     * 'pointer-events-none' on the wrapper allows clicks to pass through the invisible 
+    /* * CSS LAYOUT TRICK:
+     * 'pointer-events-none' on the wrapper allows clicks to pass through the invisible
      * areas of this fixed div, so users can still tap on products "underneath" it.
      */
     <div className="fixed bottom-6 left-0 w-full px-6 z-50 pointer-events-none">
