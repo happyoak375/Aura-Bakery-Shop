@@ -10,17 +10,16 @@ import {
 import { db } from "./firebase"; 
 import { Product, DeliveryWindow } from "./mockData";
 
-// --- NEW: Delivery Configuration Interface ---
+// --- Delivery Configuration Interface ---
 export interface DeliveryConfig {
   closedDaysOfWeek: number[]; 
   blackoutDates: string[];    
   cutoffTime: number;         
 }
 
-// --- NEW: Fetch Delivery Config from Firestore ---
+// --- Fetch Delivery Config from Firestore ---
 export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
   try {
-    // FIX: Changed "config" to "settings" to match your Firebase database
     const configRef = doc(db, "settings", "delivery");
     const docSnap = await getDoc(configRef);
     
@@ -29,7 +28,7 @@ export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
     } else {
       console.warn("Delivery config document not found! Using defaults.");
       return {
-          closedDaysOfWeek: [0], // Default to closed on Sundays
+          closedDaysOfWeek: [0], 
           blackoutDates: [],
           cutoffTime: 17
       };
@@ -37,6 +36,30 @@ export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
   } catch (error) {
     console.error("Error fetching delivery config:", error);
     return null;
+  }
+};
+
+// --- NEW: Fetch Featured Products ---
+export const fetchFeaturedProducts = async (): Promise<Product[]> => {
+  try {
+    const featRef = doc(db, "settings", "featured");
+    const featSnap = await getDoc(featRef);
+
+    if (!featSnap.exists()) return [];
+
+    const featuredIds = featSnap.data().productIds as string[];
+    if (!featuredIds || featuredIds.length === 0) return [];
+
+    const allProducts = await fetchProducts();
+
+    // Return products in the specific order saved in the admin
+    return featuredIds
+      .map(id => allProducts.find(p => p.id === id))
+      .filter((p): p is Product => p !== undefined);
+      
+  } catch (error) {
+    console.error("Error fetching featured products:", error);
+    return [];
   }
 };
 
@@ -48,7 +71,6 @@ export const generateOrderNumber = async (): Promise<number> => {
     const counterDoc = await transaction.get(counterRef);
     
     if (!counterDoc.exists()) {
-      // Initialize if it doesn't exist
       transaction.set(counterRef, { lastNumber: 1000 });
       return 1001;
     }
