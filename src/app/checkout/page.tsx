@@ -11,6 +11,7 @@ import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { DEFAULT_DELIVERY_TIME_SLOTS, generateOrderNumber, fetchDeliveryConfig, DeliveryConfig } from '../../lib/api';
 import { getAvailableDeliveryDates } from '../../lib/deliveryLogic';
+import * as fbq from '../../lib/fpixel';
 
 const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ['600'] });
 
@@ -41,6 +42,20 @@ function CheckoutForm() {
   const [selectedTime, setSelectedTime] = useState('');
   const [isCustomDate, setIsCustomDate] = useState(false);
   const [customDate, setCustomDate] = useState('');
+
+  // PIXEL: Evento InitiateCheckout
+  useEffect(() => {
+    setMounted(true);
+    if (checkoutItems.length > 0) {
+      fbq.event('InitiateCheckout', {
+        content_ids: checkoutItems.map(item => item.id),
+        content_type: 'product',
+        value: getTotal(isDirect),
+        currency: 'COP',
+        num_items: checkoutItems.reduce((acc, item) => acc + item.quantity, 0)
+      });
+    }
+  }, []); // Se ejecuta una sola vez al cargar la página
 
   useEffect(() => {
     setMounted(true);
@@ -113,11 +128,11 @@ function CheckoutForm() {
 
   return (
     <div className="max-w-xl mx-auto px-6 py-10">
-      <h1 className={`text-2xl mb-8 ${cormorant.className}`}>finalizar pedido</h1>
+      <h1 className={`text-2xl mb-8 ${cormorant.className}`}>Finalizar pedido</h1>
       <form onSubmit={handleProcessOrder} className="space-y-6">
         {/* Date Dropdown */}
         <div>
-          <label className="text-xs font-bold lowercase mb-2 block">fecha de entrega</label>
+          <label className="text-xs font-bold lowercase mb-2 block">Fecha de entrega</label>
           <select
             value={isCustomDate ? 'custom' : selectedDate}
             onChange={(e) => {
@@ -127,21 +142,21 @@ function CheckoutForm() {
             className="w-full bg-gray-50 p-4 rounded-xl border border-gray-100 outline-none"
           >
             {availableDates.map(d => <option key={d.dateString} value={d.dateString}>{d.display}</option>)}
-            <option value="custom">📅 otra fecha futura...</option>
+            <option value="custom">📅 Otra fecha futura...</option>
           </select>
         </div>
 
         {/* DYNAMIC TIME DROPDOWN */}
         {!requiresAdvisor && (
           <div>
-            <label className="text-xs font-bold lowercase mb-2 block">jornada</label>
+            <label className="text-xs font-bold lowercase mb-2 block">Jornada</label>
             <select
               required
               value={selectedTime}
               onChange={(e) => setSelectedTime(e.target.value)}
               className="w-full bg-gray-50 p-4 rounded-xl border border-gray-100 outline-none"
             >
-              <option value="">selecciona una jornada...</option>
+              <option value="">Selecciona una jornada...</option>
               {deliveryConfig?.deliveryWindows.map(win => (
                 <option key={win} value={win}>{win}</option>
               ))}
@@ -159,5 +174,5 @@ function CheckoutForm() {
 }
 
 export default function CheckoutPage() {
-  return <Suspense fallback={<p>cargando...</p>}><CheckoutForm /></Suspense>;
+  return <Suspense fallback={<p>Cargando...</p>}><CheckoutForm /></Suspense>;
 }

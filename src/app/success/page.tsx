@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense } from 'react'; // 1. Import Suspense
+import { useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle2, XCircle, MessageCircle, ArrowLeft, RefreshCcw } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
+import * as fbq from '../../lib/fpixel';
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -15,13 +16,21 @@ const cormorant = Cormorant_Garamond({
 function SuccessContent() {
   const searchParams = useSearchParams();
 
-  /**
-   * Wompi Redirection Logic:
-   * We look for the 'status' or 'id' parameter. If the status is DECLINED,
-   * VOIDED, or ERROR, we trigger the failure UI.
-   */
   const status = searchParams.get('status');
+  const orderId = searchParams.get('reference');
+  const amountCents = searchParams.get('amount-in-cents');
   const isError = status === 'DECLINED' || status === 'VOIDED' || status === 'ERROR';
+
+  useEffect(() => {
+    if (!isError) {
+      fbq.event('Purchase', {
+        value: amountCents ? Number(amountCents) / 100 : 0,
+        currency: 'COP',
+        transaction_id: orderId || 'manual_order',
+        content_type: 'product'
+      });
+    }
+  }, [isError, orderId, amountCents]);
 
   if (isError) {
     return (
@@ -87,7 +96,7 @@ function SuccessContent() {
         className="w-full max-w-sm bg-black text-white px-8 py-4 rounded-full font-medium tracking-wide flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95"
       >
         <ArrowLeft size={18} />
-        volver al menú
+        Volver al menú
       </Link>
     </main>
   );

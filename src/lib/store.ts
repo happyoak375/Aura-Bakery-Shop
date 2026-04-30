@@ -11,6 +11,8 @@ import {
   ProductPreference,
   AvailabilityType,
 } from "./mockData";
+import * as fbq from './fpixel'; // Centralizador
+
 
 // ==========================================
 // 1. TYPES & INTERFACES
@@ -158,6 +160,16 @@ export const useCartStore = create<CartStore>((set, get) => ({
       selectedVariant,
       selectedPreferences,
     );
+
+    // EVENTO PIXEL: AddToCart
+    fbq.event('AddToCart', {
+      content_name: product.name,
+      content_ids: [product.id],
+      content_type: 'product',
+      value: calculatedPrice,
+      currency: 'COP',
+      quantity: 1
+    });
 
     // 3. Check if this exact combination is already in the cart
     const existingItem = items.find((item) => item.cartItemId === cartItemId);
