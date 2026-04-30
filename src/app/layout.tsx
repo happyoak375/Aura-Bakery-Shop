@@ -4,14 +4,13 @@
  * in the application is wrapped by this layout. It injects the global font, 
  * CSS, persistent UI components, and base SEO metadata.
  */
-import { FaWhatsapp } from "react-icons/fa";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { MessageCircle } from "lucide-react";
 import "./globals.css";
 
 import Header from "../components/layout/Header";
 import StickyFooter from "../components/layout/StickyFooter";
-import { MessageCircle } from "lucide-react"; // Imported icon for the button
 
 // ==========================================
 // 1. FONTS & SEO CONFIGURATION
@@ -53,7 +52,7 @@ export default function RootLayout({
           rel="noopener noreferrer"
           className="fixed bottom-28 md:bottom-6 right-6 z-50 bg-[#25D366] text-white px-4 py-3 rounded-full flex items-center gap-2 shadow-2xl hover:scale-105 hover:bg-[#20bd5a] transition-all"
         >
-          <FaWhatsapp size={32} />
+          <MessageCircle size={32} />
           <span className="font-bold text-sm"></span>
         </a>
 

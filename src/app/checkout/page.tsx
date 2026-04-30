@@ -10,7 +10,7 @@ import { Cormorant_Garamond } from 'next/font/google';
 
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { generateOrderNumber, fetchDeliveryConfig, DeliveryConfig } from '../../lib/api';
+import { DEFAULT_DELIVERY_TIME_SLOTS, generateOrderNumber, fetchDeliveryConfig, DeliveryConfig } from '../../lib/api';
 import { getAvailableDeliveryDates } from '../../lib/deliveryLogic';
 
 const cormorant = Cormorant_Garamond({ subsets: ["latin"], weight: ['600'] });
@@ -95,6 +95,7 @@ function CheckoutForm() {
   if (!mounted || checkoutItems.length === 0) return null;
 
   const isWompi = paymentMethod === 'wompi';
+  const deliveryTimeSlots = deliveryConfig?.timeSlots?.length ? deliveryConfig.timeSlots : DEFAULT_DELIVERY_TIME_SLOTS;
 
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,8 +325,9 @@ function CheckoutForm() {
                     className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer"
                   >
                     <option value="" disabled>Selecciona una jornada...</option>
-                    <option value="Mañana (8:00 AM - 12:00 PM)">Mañana (8:00 AM - 12:00 PM)</option>
-                    <option value="Tarde (1:00 PM - 5:00 PM)">Tarde (1:00 PM - 5:00 PM)</option>
+                    {deliveryTimeSlots.map(slot => (
+                      <option key={slot} value={slot}>{slot}</option>
+                    ))}
                   </select>
                 </div>
               </>

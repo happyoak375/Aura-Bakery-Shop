@@ -14,8 +14,14 @@ import { Product, DeliveryWindow } from "./mockData";
 export interface DeliveryConfig {
   closedDaysOfWeek: number[]; 
   blackoutDates: string[];    
-  cutoffTime: number;         
+  cutoffTime: number;
+  timeSlots: string[];
 }
+
+export const DEFAULT_DELIVERY_TIME_SLOTS = [
+  "Mañana (8:00 AM - 12:00 PM)",
+  "Tarde (1:00 PM - 5:00 PM)",
+];
 
 // --- Fetch Delivery Config from Firestore ---
 export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
@@ -24,13 +30,20 @@ export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
     const docSnap = await getDoc(configRef);
     
     if (docSnap.exists()) {
-      return docSnap.data() as DeliveryConfig;
+      const data = docSnap.data() as Partial<DeliveryConfig>;
+      return {
+        closedDaysOfWeek: data.closedDaysOfWeek || [0],
+        blackoutDates: data.blackoutDates || [],
+        cutoffTime: data.cutoffTime ?? 17,
+        timeSlots: data.timeSlots?.length ? data.timeSlots : DEFAULT_DELIVERY_TIME_SLOTS,
+      };
     } else {
       console.warn("Delivery config document not found! Using defaults.");
       return {
           closedDaysOfWeek: [0], 
           blackoutDates: [],
-          cutoffTime: 17
+          cutoffTime: 17,
+          timeSlots: DEFAULT_DELIVERY_TIME_SLOTS,
       };
     }
   } catch (error) {

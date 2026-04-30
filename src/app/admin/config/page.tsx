@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
-import { fetchAllProductsAdmin } from '../../../lib/api';
+import { DEFAULT_DELIVERY_TIME_SLOTS, fetchAllProductsAdmin } from '../../../lib/api';
 import { Product } from '../../../lib/mockData';
 import { Settings, CalendarX, Clock, Save, Trash2, Plus, CalendarDays, Star, ArrowUp, ArrowDown } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
@@ -30,6 +30,8 @@ export default function ConfigPage() {
     const [closedDays, setClosedDays] = useState<number[]>([]);
     const [blackoutDates, setBlackoutDates] = useState<string[]>([]);
     const [newDate, setNewDate] = useState('');
+    const [timeSlots, setTimeSlots] = useState<string[]>(DEFAULT_DELIVERY_TIME_SLOTS);
+    const [newTimeSlot, setNewTimeSlot] = useState('');
 
     // --- State for Featured Products ---
     const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -47,6 +49,7 @@ export default function ConfigPage() {
                     setCutoffTime(data.cutoffTime ?? 17);
                     setClosedDays(data.closedDaysOfWeek ?? [0]);
                     setBlackoutDates(Array.isArray(data.blackoutDates) ? [...data.blackoutDates].sort() : []);
+                    setTimeSlots(Array.isArray(data.timeSlots) && data.timeSlots.length ? data.timeSlots : DEFAULT_DELIVERY_TIME_SLOTS);
                 }
 
                 // Load Featured Config
@@ -84,6 +87,17 @@ export default function ConfigPage() {
         setBlackoutDates(prev => prev.filter(d => d !== dateToRemove));
     };
 
+    const handleAddTimeSlot = () => {
+        const slot = newTimeSlot.trim();
+        if (!slot || timeSlots.includes(slot)) return;
+        setTimeSlots([...timeSlots, slot]);
+        setNewTimeSlot('');
+    };
+
+    const handleRemoveTimeSlot = (slotToRemove: string) => {
+        setTimeSlots(prev => prev.filter(slot => slot !== slotToRemove));
+    };
+
     // --- Featured Logic ---
     const addFeaturedProduct = () => {
         if (!selectedProductId || featuredIds.includes(selectedProductId)) return;
@@ -113,7 +127,8 @@ export default function ConfigPage() {
             await setDoc(deliveryRef, {
                 cutoffTime: Number(cutoffTime),
                 closedDaysOfWeek: closedDays,
-                blackoutDates: blackoutDates
+                blackoutDates: blackoutDates,
+                timeSlots: timeSlots
             }, { merge: true });
 
             // Save Featured Products
@@ -196,6 +211,47 @@ export default function ConfigPage() {
                                 </div>
                             );
                         })}
+                    </div>
+                </div>
+
+                {/* HORARIOS SECTION */}
+                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center gap-3 mb-6 border-b border-gray-50 pb-4">
+                        <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg"><Clock size={20} /></div>
+                        <div>
+                            <h2 className="font-bold text-zinc-900 text-lg lowercase">gestión de horarios</h2>
+                            <p className="text-xs text-zinc-500 lowercase">estas jornadas aparecen para el cliente en checkout.</p>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 mb-6">
+                        <input
+                            type="text"
+                            value={newTimeSlot}
+                            onChange={(e) => setNewTimeSlot(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddTimeSlot();
+                                }
+                            }}
+                            className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 transition-all text-zinc-700 flex-1 font-medium"
+                            placeholder="ej. Noche (6:00 PM - 8:00 PM)"
+                        />
+                        <button onClick={handleAddTimeSlot} disabled={!newTimeSlot.trim()} className="bg-zinc-100 text-zinc-800 px-6 py-3 rounded-xl font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 lowercase disabled:opacity-50">
+                            <Plus size={18} /> agregar
+                        </button>
+                    </div>
+
+                    <div className="space-y-2">
+                        {timeSlots.map(slot => (
+                            <div key={slot} className="bg-gray-50 border border-gray-100 p-3 rounded-xl flex items-center justify-between">
+                                <span className="text-sm font-bold text-zinc-800">{slot}</span>
+                                <button onClick={() => handleRemoveTimeSlot(slot)} disabled={timeSlots.length === 1} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors disabled:opacity-30">
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
