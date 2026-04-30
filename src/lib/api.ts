@@ -12,10 +12,10 @@ import { Product, DeliveryWindow } from "./mockData";
 
 // --- Delivery Configuration Interface ---
 export interface DeliveryConfig {
-  closedDaysOfWeek: number[];
-  blackoutDates: string[];
+  closedDaysOfWeek: number[]; 
+  blackoutDates: string[];    
   cutoffTime: number;
-  timeSlots: string[];
+  deliveryWindows: string[]; // NEW: Dynamic time slots
 }
 
 export const DEFAULT_DELIVERY_TIME_SLOTS = [
@@ -30,20 +30,19 @@ export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
     const docSnap = await getDoc(configRef);
 
     if (docSnap.exists()) {
-      const data = docSnap.data() as Partial<DeliveryConfig>;
+      const data = docSnap.data();
       return {
         closedDaysOfWeek: data.closedDaysOfWeek || [0],
         blackoutDates: data.blackoutDates || [],
         cutoffTime: data.cutoffTime ?? 17,
-        timeSlots: data.timeSlots?.length ? data.timeSlots : DEFAULT_DELIVERY_TIME_SLOTS,
-      };
+        deliveryWindows: data.deliveryWindows || ["Mañana (8:00 AM - 12:00 PM)", "Tarde (1:00 PM - 5:00 PM)"]
+      } as DeliveryConfig;
     } else {
-      console.warn("Delivery config document not found! Using defaults.");
       return {
           closedDaysOfWeek: [0],
           blackoutDates: [],
           cutoffTime: 17,
-          timeSlots: DEFAULT_DELIVERY_TIME_SLOTS,
+          deliveryWindows: ["Mañana (8:00 AM - 12:00 PM)", "Tarde (1:00 PM - 5:00 PM)"]
       };
     }
   } catch (error) {
@@ -52,24 +51,18 @@ export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
   }
 };
 
-// --- NEW: Fetch Featured Products ---
+// --- Fetch Featured Products ---
 export const fetchFeaturedProducts = async (): Promise<Product[]> => {
   try {
     const featRef = doc(db, "settings", "featured");
     const featSnap = await getDoc(featRef);
-
     if (!featSnap.exists()) return [];
-
     const featuredIds = featSnap.data().productIds as string[];
     if (!featuredIds || featuredIds.length === 0) return [];
-
     const allProducts = await fetchProducts();
-
-    // Return products in the specific order saved in the admin
     return featuredIds
       .map(id => allProducts.find(p => p.id === id))
       .filter((p): p is Product => p !== undefined);
-
   } catch (error) {
     console.error("Error fetching featured products:", error);
     return [];
@@ -79,15 +72,12 @@ export const fetchFeaturedProducts = async (): Promise<Product[]> => {
 // --- Generate Sequential Order Numbers ---
 export const generateOrderNumber = async (): Promise<number> => {
   const counterRef = doc(db, "config", "order_counter");
-
   return await runTransaction(db, async (transaction) => {
     const counterDoc = await transaction.get(counterRef);
-
     if (!counterDoc.exists()) {
       transaction.set(counterRef, { lastNumber: 1000 });
       return 1001;
     }
-
     const newNumber = counterDoc.data().lastNumber + 1;
     transaction.update(counterRef, { lastNumber: newNumber });
     return newNumber;
@@ -99,14 +89,12 @@ export const createOrder = async (orderData: any) => {
   try {
     const orderNumber = await generateOrderNumber();
     const orderId = `ORD-${orderNumber}`;
-
     await setDoc(doc(db, "orders", orderId), {
       ...orderData,
       orderNumber,
       createdAt: serverTimestamp(),
       status: 'pending'
     });
-
     return { success: true, orderId };
   } catch (error) {
     console.error("Error creating order:", error);
