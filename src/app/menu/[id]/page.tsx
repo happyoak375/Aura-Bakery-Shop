@@ -133,6 +133,18 @@ export default function ProductDetailPage() {
 
   const handleAddToCart = () => {
     addItem(product!, selectedVariant, selectedPreferences);
+
+    // NUEVO EVENTO PIXEL: AddToCart
+    if (product) {
+      fbq.event('AddToCart', {
+        content_name: product.name,
+        content_ids: [product.id],
+        content_type: 'product',
+        value: currentPrice,
+        currency: 'COP',
+      });
+    }
+
     setAddedToast(true);
     setLocalItemCount(prevCount => prevCount + 1);
     setTimeout(() => setAddedToast(false), 2000);

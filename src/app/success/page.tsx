@@ -12,7 +12,6 @@ const cormorant = Cormorant_Garamond({
   weight: ['500', '600']
 });
 
-// 2. Move your logic into a separate internal component
 function SuccessContent() {
   const searchParams = useSearchParams();
 
@@ -23,10 +22,14 @@ function SuccessContent() {
 
   useEffect(() => {
     if (!isError) {
+      // Ajuste seguro: Previene que mande un NaN o falle si el usuario
+      // pagó por WhatsApp y la URL no tiene la variable "amount-in-cents"
+      const purchaseValue = amountCents ? Number(amountCents) / 100 : 0;
+
       fbq.event('Purchase', {
-        value: amountCents ? Number(amountCents) / 100 : 0,
+        value: purchaseValue > 0 ? purchaseValue : undefined, // Evita mandar 0 si es manual
         currency: 'COP',
-        transaction_id: orderId || 'manual_order',
+        transaction_id: orderId || 'pedido_wa',
         content_type: 'product'
       });
     }
@@ -102,7 +105,6 @@ function SuccessContent() {
   );
 }
 
-// 3. The default export wraps the content in Suspense
 export default function SuccessPage() {
   return (
     <Suspense fallback={
