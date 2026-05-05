@@ -1,5 +1,5 @@
 // src/lib/fpixel.ts
-export const FB_PIXEL_ID = '2033665637212400';
+export const FB_PIXEL_ID = '1429407425866509';
 
 /**
  * Dispara el evento estándar PageView
