@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { MessageCircle } from "lucide-react";
-import Script from "next/script";
 import "./globals.css";
+
+import FacebookPixel from "@/components/FacebookPixel";
+import { Suspense } from "react";
 
 import Header from "../components/layout/Header";
 import StickyFooter from "../components/layout/StickyFooter";
-import * as fbq from "../lib/fpixel";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,27 +23,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <head>
-        {/* Meta Pixel Code - AuraTaller App */}
-        <Script id="fb-pixel" strategy="afterInteractive">
-          {`
-            !function(f,b,e,v,n,t,s)
-            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-            n.queue=[];t=b.createElement(e);t.async=!0;
-            t.src=v;s=b.getElementsByTagName(e)[0];
-            s.parentNode.insertBefore(t,s)}(window, document,'script',
-            'https://connect.facebook.net/en_US/fbevents.js');
-            fbq('init', '${fbq.FB_PIXEL_ID}');
-            fbq('track', 'PageView');
-          `}
-        </Script>
-      </head>
       <body className={inter.className}>
+        {/* Meta Pixel Component - Tracks PageViews dynamically on route changes */}
+        <Suspense fallback={null}>
+          <FacebookPixel />
+        </Suspense>
+
         <Header />
+
         {children}
 
+        {/* WhatsApp Floating Button */}
         <a
           href="https://wa.me/573173285832?text=¡Hola!%20Me%20gustaría%20recibir%20asesoría%20sobre%20Aura%20Bakery."
           target="_blank"

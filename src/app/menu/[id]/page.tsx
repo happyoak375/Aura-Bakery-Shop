@@ -14,7 +14,7 @@ import { ArrowLeft, Clock, MessageCircle, ShoppingBag, Zap } from 'lucide-react'
 import { ProductVariant, ProductPreference, AvailabilityType, Product } from '../../../lib/mockData';
 import { useCartStore } from '../../../lib/store';
 import { fetchProductById } from '../../../lib/api';
-import * as fbq from '../../../lib/fpixel'; // Centralizador
+import * as fbq from '../../../lib/fpixel';
 
 // ==========================================
 // 2. HELPER FUNCTIONS
@@ -67,7 +67,6 @@ export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
 
-  // EXTRAEMOS LAS DOS FUNCIONES DEL STORE
   const { addItem, setDirectPurchaseItem } = useCartStore();
 
   // --- State Management ---
@@ -134,7 +133,7 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     addItem(product!, selectedVariant, selectedPreferences);
 
-    // NUEVO EVENTO PIXEL: AddToCart
+    // EVENTO PIXEL: AddToCart
     if (product) {
       fbq.event('AddToCart', {
         content_name: product.name,
@@ -159,12 +158,10 @@ export default function ProductDetailPage() {
       return;
     }
 
-    // Calculamos el precio exacto
     const variantDelta = selectedVariant ? selectedVariant.price_delta : 0;
     const prefsDelta = selectedPreferences.reduce((sum, p) => sum + p.price_delta, 0);
     const calculatedPrice = product.basePrice + variantDelta + prefsDelta;
 
-    // Creamos el objeto temporal para compra directa
     const tempItem = {
       ...product,
       cartItemId: 'direct_purchase',
@@ -174,7 +171,6 @@ export default function ProductDetailPage() {
       quantity: localItemCount > 0 ? localItemCount : 1,
     };
 
-    // Lo guardamos en el espacio aislado y vamos al checkout
     setDirectPurchaseItem(tempItem as any);
     router.push('/checkout?type=direct');
   };
@@ -250,8 +246,8 @@ export default function ProductDetailPage() {
           </p>
         </div>
 
-        {/* --- VARIANTS SELECTOR --- */}
-        {product.variants.length > 0 && (
+        {/* --- VARIANTS SELECTOR (DEFENSIVE FIX) --- */}
+        {product.variants && product.variants.length > 0 && (
           <div className="mb-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-3">Elige un tamaño/opción</h3>
             <div className="space-y-3">
@@ -276,8 +272,8 @@ export default function ProductDetailPage() {
           </div>
         )}
 
-        {/* --- PREFERENCES SELECTOR --- */}
-        {product.preferences.length > 0 && (
+        {/* --- PREFERENCES SELECTOR (DEFENSIVE FIX) --- */}
+        {product.preferences && product.preferences.length > 0 && (
           <div className="mb-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-3">Preferencias (Opcional)</h3>
             <div className="space-y-3">

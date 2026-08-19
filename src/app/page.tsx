@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, ShoppingBag, Clock, CheckCircle2 } from 'lucide-react';
-import { fetchFeaturedProducts } from '../lib/api'; // Corrected import
+// Import the helper function here!
+import { fetchFeaturedProducts, getLocalProductImage } from '../lib/api';
 import { Product } from '../lib/mockData';
 import { Cormorant_Garamond } from 'next/font/google';
 
@@ -19,7 +20,6 @@ export default function Home() {
 
   useEffect(() => {
     const loadFeaturedProducts = async () => {
-      // Use the manual list from Admin instead of the first 2 products
       const featured = await fetchFeaturedProducts();
       setFeaturedProducts(featured);
       setIsLoading(false);
@@ -32,12 +32,12 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 pb-32 font-sans">
       {/* HERO SECTION */}
       <section className="relative pt-32 pb-36 px-6 overflow-hidden min-h-[60vh] flex items-center">
-        <Image
+        {/* We use a standard img tag here temporarily if the hero image is also on Firebase, 
+            but if it's already in /public/images/ it's fine! */}
+        <img
           src="/images/aura-pasteis-de-nata-banner.jpg"
           alt="Aura Bakery Hero Background"
-          fill
-          priority
-          className="object-cover"
+          className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px]" />
         <div className="relative z-10 max-w-4xl mx-auto text-center">
@@ -95,25 +95,35 @@ export default function Home() {
           {isLoading ? (
             <div className="col-span-2 text-center py-8 text-zinc-400 font-light text-sm animate-pulse">cargando populares...</div>
           ) : featuredProducts.length > 0 ? (
-            featuredProducts.map((product) => (
-              <Link
-                href={`/menu/${product.id}`}
-                key={product.id}
-                className="bg-white rounded-3xl p-4 flex items-center gap-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow active:scale-95"
-              >
-                <div className="relative w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
-                  <Image src={product.imageUrl} alt={product.name} fill sizes="96px" className="object-cover" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-medium text-zinc-900 text-lg leading-tight mb-1 tracking-tight">{product.name}</h3>
-                  <p className="text-zinc-500/90 text-sm line-clamp-1 mb-2 font-light">{product.description}</p>
-                  <div className="font-medium text-zinc-900">Desde ${product.basePrice.toLocaleString('es-CO')}</div>
-                </div>
-                <div className="bg-gray-50 py-1.5 px-3 rounded-full text-zinc-900 hover:bg-black hover:text-white transition-colors border border-gray-200">
-                  <span className="text-xs font-medium whitespace-nowrap">+ agregar</span>
-                </div>
-              </Link>
-            ))
+            featuredProducts.map((product) => {
+              // GET THE LOCAL IMAGE HERE
+              const localImage = getLocalProductImage(product.name);
+
+              return (
+                <Link
+                  href={`/menu/${product.id}`}
+                  key={product.id}
+                  className="bg-white rounded-3xl p-4 flex items-center gap-4 shadow-sm border border-gray-100 hover:shadow-md transition-shadow active:scale-95"
+                >
+                  <div className="relative w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
+                    {/* USE A STANDARD IMG TAG TEMPORARILY TO BYPASS NEXT.JS OPTIMIZATION ERRORS */}
+                    <img
+                      src={localImage}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-zinc-900 text-lg leading-tight mb-1 tracking-tight">{product.name}</h3>
+                    <p className="text-zinc-500/90 text-sm line-clamp-1 mb-2 font-light">{product.description}</p>
+                    <div className="font-medium text-zinc-900">Desde ${product.basePrice.toLocaleString('es-CO')}</div>
+                  </div>
+                  <div className="bg-gray-50 py-1.5 px-3 rounded-full text-zinc-900 hover:bg-black hover:text-white transition-colors border border-gray-200">
+                    <span className="text-xs font-medium whitespace-nowrap">+ agregar</span>
+                  </div>
+                </Link>
+              );
+            })
           ) : (
             <div className="col-span-2 text-center py-8 text-zinc-400 font-light text-sm">No hay productos destacados por el momento.</div>
           )}

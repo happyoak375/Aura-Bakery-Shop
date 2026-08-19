@@ -10,7 +10,7 @@ import { Cormorant_Garamond } from 'next/font/google';
 
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { generateOrderNumber, fetchDeliveryConfig, DeliveryConfig } from '../../lib/api';
+import { generateOrderNumber, fetchDeliveryConfig, DeliveryConfig, processPOSOrder } from '../../lib/api';
 import { getAvailableDeliveryDates } from '../../lib/deliveryLogic';
 
 // --- NUEVO: Importación del Facebook Pixel ---
@@ -108,7 +108,6 @@ function CheckoutForm() {
   const handleProcessOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Block submission if Wompi is chosen but no date is selected
     if (isWompi && !requiresAdvisor && (!selectedDate || !selectedTime)) {
       alert("Por favor selecciona una fecha y hora de entrega.");
       return;
@@ -118,39 +117,46 @@ function CheckoutForm() {
     const targetTab = window.open('about:blank', '_blank');
 
     try {
-      const orderNumber = await generateOrderNumber();
-      const orderId = `ORD-${orderNumber}`;
-      const newOrderRef = doc(db, 'orders', orderId);
-
       const deliveryDateString = requiresAdvisor ? 'Definir con asesor' : `${selectedDate} (${selectedTime})`;
 
-      await runTransaction(db, async (transaction) => {
-        transaction.set(newOrderRef, {
-          orderNumber,
-          customerName: name || 'Sin nombre',
-          customerPhone: phone || 'Sin teléfono',
-          deliveryMethod,
-          address: deliveryMethod === 'delivery' ? address : null,
-          neighborhood: deliveryMethod === 'delivery' ? neighborhood : null,
-          deliveryDate: deliveryDateString,
-          items: checkoutItems,
-          subTotal,
-          deliveryFee,
-          totalAmount: finalTotal,
-          notes,
-          paymentMethod,
-          paymentStatus: 'PENDIENTE',
+      // 1. Format the order data EXACTLY how the Engine expects it
+      const orderData = {
+        totalAmount: finalTotal,
+        paymentMethod: paymentMethod === 'wompi' ? 'card' as const : 'transfer' as const, // Map Wompi to card
+        status: 'pending' as const,
+        source: 'web' as const, // <-- THIS IS CRUCIAL! It tells the Comanda it's a web order
 
-          // FIX: Save both statuses so the order appears in the list AND the kitchen!
-          orderStatus: 'NUEVO',
-          status: 'pending',
+        // Add the extra web-specific fields (the engine will save these automatically)
+        customerName: name || 'Sin nombre',
+        customerPhone: phone || 'Sin teléfono',
+        deliveryMethod,
+        address: deliveryMethod === 'delivery' ? address : null,
+        neighborhood: deliveryMethod === 'delivery' ? neighborhood : null,
+        deliveryDate: deliveryDateString,
+        notes,
+        subTotal,
+        deliveryFee,
+        orderStatus: 'NUEVO', // For the Comanda Digital
 
-          createdAt: serverTimestamp()
-        });
-      });
+        // Map the cart items for the engine
+        items: checkoutItems.map(item => ({
+          productId: item.id,
+          quantity: item.quantity,
+          price: item.calculatedPrice,
+          name: item.name // Pass name for the Comanda Digital
+        }))
+      };
 
+      // 2. SEND IT TO THE ENGINE! (This handles all BOM deductions automatically)
+      const result = await processPOSOrder(orderData);
+      const orderId = result.orderId;
+      // We extract the number from the ID for the WhatsApp message
+      const orderNumber = parseInt(orderId.replace('POS-', ''), 10);
+
+      // Clear the cart
       if (isDirect) setDirectPurchaseItem(null); else clearCart();
 
+      // 3. Handle Payment Routing (Wompi vs WhatsApp)
       if (paymentMethod === 'wompi') {
         const amountInCents = Math.round(finalTotal * 100);
         const signature = await getWompiSignature(orderId, amountInCents);
@@ -171,6 +177,7 @@ function CheckoutForm() {
         router.push('/success');
 
       } else {
+        // ... Keep your existing WhatsApp message formatting logic here ...
         const itemsList = checkoutItems.map(item => {
           let text = `• ${item.quantity}x ${item.name} ($${(item.calculatedPrice * item.quantity).toLocaleString('es-CO')})`;
           if (item.selectedVariant) text += `\n  - ${item.selectedVariant.name}`;
@@ -187,7 +194,6 @@ function CheckoutForm() {
         message += `*SUBTOTAL:* $${subTotal.toLocaleString('es-CO')}\n`;
         message += `*DOMICILIO:* $${deliveryFee.toLocaleString('es-CO')}\n`;
         message += `*TOTAL:* $${finalTotal.toLocaleString('es-CO')}\n\n`;
-
         message += `*DATOS:*\n`;
         if (name) message += `- Nombre: ${name}\n`;
         if (phone) message += `- Teléfono: ${phone}\n`;
