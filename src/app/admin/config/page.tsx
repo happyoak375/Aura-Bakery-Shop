@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
-import { DEFAULT_DELIVERY_TIME_SLOTS, fetchAllProductsAdmin } from '../../../lib/api';
-import { Product } from '../../../lib/mockData';
+import { fetchInventoryItems, InventoryItem } from '../../../lib/api'; // <-- Updated to InventoryItem
 import { Settings, CalendarX, Clock, Save, Trash2, Plus, CalendarDays, Star, ArrowUp, ArrowDown, Timer } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
@@ -36,7 +35,7 @@ export default function ConfigPage() {
     const [newWindow, setNewWindow] = useState('');
 
     // Featured States
-    const [allProducts, setAllProducts] = useState<Product[]>([]);
+    const [allProducts, setAllProducts] = useState<InventoryItem[]>([]); // <-- Updated to InventoryItem
     const [featuredIds, setFeaturedIds] = useState<string[]>([]);
     const [selectedProductId, setSelectedProductId] = useState('');
 
@@ -59,7 +58,8 @@ export default function ConfigPage() {
                     setFeaturedIds(featSnap.data().productIds || []);
                 }
 
-                const products = await fetchAllProductsAdmin();
+                // <-- THE FIX: Calling the V2 function
+                const products = await fetchInventoryItems();
                 setAllProducts(products);
             } catch (error) {
                 console.error("Error loading config:", error);
@@ -161,7 +161,7 @@ export default function ConfigPage() {
                     <div className="flex gap-3 mb-4">
                         <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)} className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none flex-1">
                             <option value="">selecciona un producto...</option>
-                            {allProducts.filter(p => !featuredIds.includes(p.id)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            {allProducts.filter(p => !featuredIds.includes(p.id!)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                         <button onClick={() => { if (selectedProductId) { setFeaturedIds([...featuredIds, selectedProductId]); setSelectedProductId(''); } }} className="bg-zinc-100 px-6 py-3 rounded-xl font-bold"><Plus size={18} /></button>
                     </div>
@@ -176,7 +176,7 @@ export default function ConfigPage() {
                     </div>
                 </div>
 
-                {/* DÍAS CERRADOS & FESTIVOS (Minimal versions for brevity) */}
+                {/* DÍAS CERRADOS & FESTIVOS */}
                 <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
                     <h2 className="font-bold text-zinc-900 text-lg lowercase mb-4">días de descanso</h2>
                     <div className="flex flex-wrap gap-2">

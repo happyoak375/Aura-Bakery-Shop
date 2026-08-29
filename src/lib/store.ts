@@ -5,6 +5,7 @@
  */
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware"; // <-- NUEVO: Para guardar la sesión del staff
 import {
   Product,
   ProductVariant,
@@ -12,6 +13,8 @@ import {
   AvailabilityType,
 } from "./mockData";
 import * as fbq from './fpixel'; // Centralizador
+import { auth } from './firebase';
+import { signOut } from "firebase/auth";
 
 
 // ==========================================
@@ -133,7 +136,7 @@ const calculateMostRestrictiveAvailability = (
 };
 
 // ==========================================
-// 3. STORE IMPLEMENTATION
+// 3. CART STORE IMPLEMENTATION
 // ==========================================
 
 export const useCartStore = create<CartStore>((set, get) => ({
@@ -245,5 +248,37 @@ export const useCartStore = create<CartStore>((set, get) => ({
       return get().directPurchaseItem!.availabilityType;
     }
     return calculateMostRestrictiveAvailability(get().items);
+  },
+}));
+
+// ==========================================
+// 4. STAFF AUTHENTICATION STORE (NUEVO)
+// ==========================================
+
+interface AuthState {
+  isStaffLoggedIn: boolean;
+  employeeEmail: string | null;
+  setStaffUser: (email: string | null) => void;
+  logout: () => Promise<void>;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  isStaffLoggedIn: false,
+  employeeEmail: null,
+  
+  // Call this when Firebase successfully logs them in
+  setStaffUser: (email) => set({ 
+    isStaffLoggedIn: !!email, 
+    employeeEmail: email 
+  }),
+
+  // Logs out of both Firebase and the global state
+  logout: async () => {
+    try {
+      await signOut(auth);
+      set({ isStaffLoggedIn: false, employeeEmail: null });
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
   },
 }));

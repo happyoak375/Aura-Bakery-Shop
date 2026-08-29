@@ -1,12 +1,13 @@
 /**
- * @fileoverview Main Admin Dashboard Component
+ * @fileoverview Main Admin Dashboard Component (V1 & V2 Merged Hub)
  */
 
 'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Users, ShoppingBag, ClipboardList, Package } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Users, ShoppingBag, PackageSearch, Store, ChefHat, LogOut } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
 import { db } from '../../lib/firebase';
@@ -15,14 +16,22 @@ import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from 'firebase/auth';
 
+// NUEVO: Importamos el store de autenticación
+import { useAuthStore } from '../../lib/store';
+
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
   weight: ['600']
 });
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'orders' | 'team'>('orders');
+  // --- AUTHENTICATION & ROUTING ---
+  const router = useRouter();
+  const { isStaffLoggedIn, logout } = useAuthStore();
+  const [isMounted, setIsMounted] = useState(false);
 
+  // --- V1 STATE ---
+  const [activeTab, setActiveTab] = useState<'orders' | 'team'>('orders');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -35,7 +44,18 @@ export default function AdminDashboard() {
   const allStatuses = ['NUEVO', 'CONFIRMADO', 'PREPARANDO', 'ENTREGADO', 'CANCELADO'];
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['NUEVO', 'CONFIRMADO', 'PREPARANDO']);
 
+  // 1. SECURITY CHECK
   useEffect(() => {
+    setIsMounted(true);
+    if (!isStaffLoggedIn) {
+      router.push('/');
+    }
+  }, [isStaffLoggedIn, router]);
+
+  // 2. V1 FIREBASE LISTENER (Only runs if logged in)
+  useEffect(() => {
+    if (!isStaffLoggedIn) return;
+
     const qOrders = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
     const unsubscribeOrders = onSnapshot(qOrders, (querySnapshot) => {
       const ordersData = querySnapshot.docs.map(doc => ({
@@ -49,8 +69,14 @@ export default function AdminDashboard() {
     return () => {
       unsubscribeOrders();
     };
-  }, []);
+  }, [isStaffLoggedIn]);
 
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
+
+  // --- V1 FUNCIONES INTACTAS ---
   const handleCreateTeamMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreatingUser(true);
@@ -112,50 +138,75 @@ export default function AdminDashboard() {
     selectedStatuses.includes(order.orderStatus || 'NUEVO')
   );
 
+  if (!isMounted || !isStaffLoggedIn) return null;
+
   return (
-    <div className="max-w-5xl mx-auto px-8 py-10 font-sans">
+    <div className="max-w-6xl mx-auto px-6 py-10 font-sans">
 
-      <h1 className={`text-4xl text-zinc-900 mb-8 ${cormorant.className}`}>panel de control</h1>
+      {/* --- ENCABEZADO Y LOGOUT --- */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <h1 className={`text-4xl text-zinc-900 ${cormorant.className}`}>panel de control operativo</h1>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-red-500 font-bold hover:bg-red-50 px-4 py-2 rounded-full transition"
+        >
+          <LogOut size={18} /> cerrar sesión
+        </button>
+      </div>
 
-      {/* --- QUICK ACCESS BUTTONS --- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
-        <Link href="/admin/orders" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-4 group">
-          <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-            <ClipboardList size={24} />
+      {/* --- QUICK ACCESS HUB (NUEVO V2) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+
+        <Link href="/pos" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Store size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-zinc-900 text-lg">tablero de cocina</h3>
-            <p className="text-zinc-500 text-sm">gestiona los pedidos activos</p>
+            <h3 className="font-bold text-zinc-900 text-lg">caja / pos</h3>
+            <p className="text-zinc-500 text-sm">punto de venta físico</p>
           </div>
         </Link>
 
-        <Link href="/admin/products" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-4 group">
-          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-            <Package size={24} />
+        <Link href="/kitchen" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+          <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <ChefHat size={24} />
+          </div>
+          <div>
+            <h3 className="font-bold text-zinc-900 text-lg">comanda cocina</h3>
+            <p className="text-zinc-500 text-sm">pantalla de preparación</p>
+          </div>
+        </Link>
+
+        <Link href="/admin/inventory" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+          <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <PackageSearch size={24} />
           </div>
           <div>
             <h3 className="font-bold text-zinc-900 text-lg">inventario</h3>
-            <p className="text-zinc-500 text-sm">agrega o edita productos</p>
+            <p className="text-zinc-500 text-sm">gestión de menú y stock</p>
           </div>
         </Link>
+
       </div>
 
+      {/* --- V1 TABS (INTACTO) --- */}
       <div className="flex gap-4 mb-8 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('orders')}
-          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'orders' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600' }`}
+          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'orders' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
         >
-          <ShoppingBag size={18} /> listado de pedidos
+          <ShoppingBag size={18} /> historial de pedidos
         </button>
 
         <button
           onClick={() => setActiveTab('team')}
-          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'team' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600' }`}
+          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'team' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
         >
           <Users size={18} /> equipo
         </button>
       </div>
 
+      {/* --- V1 TAB CONTENT (INTACTO) --- */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 min-h-[400px]">
         {activeTab === 'orders' ? (
           <div>
@@ -169,7 +220,7 @@ export default function AdminDashboard() {
                 <button
                   key={status}
                   onClick={() => toggleStatus(status)}
-                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${selectedStatuses.includes(status) ? 'bg-black text-white border-black shadow-sm' : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300' }`}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${selectedStatuses.includes(status) ? 'bg-black text-white border-black shadow-sm' : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300'}`}
                 >
                   {status}
                 </button>
@@ -197,14 +248,14 @@ export default function AdminDashboard() {
 
                         <div className="flex flex-col items-end gap-1.5">
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${order.paymentStatus === 'PAGADO' ? 'bg-green-100 text-green-700' : order.paymentStatus === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700' }`}>
+                            <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${order.paymentStatus === 'PAGADO' ? 'bg-green-100 text-green-700' : order.paymentStatus === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
                               {order.paymentStatus}
                             </span>
 
                             <select
                               value={order.orderStatus || 'NUEVO'}
                               onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                              className={`text-[10px] font-bold uppercase tracking-wider rounded-md px-2 py-1 outline-none cursor-pointer border ${(order.orderStatus || 'NUEVO') === 'NUEVO' ? 'bg-blue-50 text-blue-700 border-blue-100' : order.orderStatus === 'CONFIRMADO' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : order.orderStatus === 'PREPARANDO' ? 'bg-orange-50 text-orange-700 border-orange-100' : order.orderStatus === 'ENTREGADO' ? 'bg-green-50 text-green-700 border-green-100' : order.orderStatus === 'CANCELADO' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-gray-100 text-gray-700 border-gray-200' }`}
+                              className={`text-[10px] font-bold uppercase tracking-wider rounded-md px-2 py-1 outline-none cursor-pointer border ${(order.orderStatus || 'NUEVO') === 'NUEVO' ? 'bg-blue-50 text-blue-700 border-blue-100' : order.orderStatus === 'CONFIRMADO' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : order.orderStatus === 'PREPARANDO' ? 'bg-orange-50 text-orange-700 border-orange-100' : order.orderStatus === 'ENTREGADO' ? 'bg-green-50 text-green-700 border-green-100' : order.orderStatus === 'CANCELADO' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-gray-100 text-gray-700 border-gray-200'}`}
                             >
                               <option value="NUEVO">NUEVO</option>
                               <option value="CONFIRMADO">CONFIRMADO</option>
@@ -259,7 +310,7 @@ export default function AdminDashboard() {
 
             <form onSubmit={handleCreateTeamMember} className="space-y-4">
               {teamMessage.text && (
-                <div className={`text-sm p-3 rounded-xl border text-center ${teamMessage.type === 'success' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100' }`}>
+                <div className={`text-sm p-3 rounded-xl border text-center ${teamMessage.type === 'success' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100'}`}>
                   {teamMessage.text}
                 </div>
               )}
