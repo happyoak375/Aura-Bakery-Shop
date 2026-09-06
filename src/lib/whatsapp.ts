@@ -11,6 +11,7 @@ const formatCOP = (amount: number) => {
 
 export async function sendWhatsAppConfirmation(phone: string, orderId: string) {
   if (!token || !phoneNumberId) return;
+
   const cleanPhone = phone.replace(/\D/g, "");
 
   const payload = {
@@ -35,7 +36,7 @@ export async function sendWhatsAppConfirmation(phone: string, orderId: string) {
 export async function sendAdminNotification(
   phone: string,
   orderId: string,
-  customer_name: string, // Updated parameter name
+  customerName: string, 
   totalAmount: number
 ) {
   if (!token || !phoneNumberId) return;
@@ -54,7 +55,7 @@ export async function sendAdminNotification(
         {
           type: "body",
           parameters: [
-            { type: "text", text: customer_name }, // Using customer_name
+            { type: "text", text: customerName }, 
             { type: "text", text: formattedPrice },
             { type: "text", text: orderId },
           ],

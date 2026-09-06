@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { fetchInventoryByType, recordProductionBatch, getLocalProductImage, InventoryItem } from '@/lib/api';
+import { fetchInventoryItems, recordProductionBatch, getLocalProductImage, InventoryItem } from '../../lib/api';
 
 export default function ProductionPage() {
     const [products, setProducts] = useState<InventoryItem[]>([]);
@@ -15,11 +15,13 @@ export default function ProductionPage() {
     const loadProducts = async () => {
         try {
             setIsLoading(true);
-            const data = await fetchInventoryByType('finished_good');
+            const allItems = await fetchInventoryItems();
 
-            // NEW: Filter out made-to-order items so the kitchen only sees bakeable pastries!
-            const bakeableItems = data.filter(item =>
-                item.category !== 'Café' && item.category !== 'Bebidas'
+            // Filter out raw materials and made-to-order drinks so the kitchen only sees bakeable pastries & WIP!
+            const bakeableItems = allItems.filter(item =>
+                (item.type === 'finished_good' || item.type === 'wip') &&
+                item.category !== 'Café' &&
+                item.category !== 'Bebidas'
             );
 
             setProducts(bakeableItems);
@@ -89,11 +91,11 @@ export default function ProductionPage() {
                                 className="bg-white rounded-3xl p-6 flex flex-col items-center text-center shadow-sm border border-gray-100 hover:shadow-md hover:border-black active:scale-95 transition-all group"
                             >
                                 {imgPath ? (
-                                    <div className="w-20 h-20 mb-4 relative rounded-full overflow-hidden shadow-sm border border-gray-100 group-hover:scale-105 transition-transform">
+                                    <div className="w-20 h-20 mb-4 relative rounded-2xl overflow-hidden shadow-sm border border-gray-100 group-hover:scale-105 transition-transform">
                                         <img src={imgPath} alt={safeName} className="w-full h-full object-cover" />
                                     </div>
                                 ) : (
-                                    <div className="w-20 h-20 bg-gray-100 rounded-full mb-4 flex items-center justify-center text-gray-400 font-bold text-2xl group-hover:scale-105 transition-transform">
+                                    <div className="w-20 h-20 bg-gray-100 rounded-2xl mb-4 flex items-center justify-center text-gray-400 font-bold text-2xl group-hover:scale-105 transition-transform">
                                         {safeName.charAt(0).toUpperCase()}
                                     </div>
                                 )}
@@ -155,7 +157,7 @@ export default function ProductionPage() {
                                 <button
                                     onClick={handleRecordBatch}
                                     disabled={quantity === 0 || isSubmitting}
-                                    className="flex-1 bg-black text-white font-bold py-4 rounded-2xl hover:bg-gray-800 transition-colors disabled:opacity-50"
+                                    className="flex-1 bg-black text-white font-bold py-4 rounded-2xl hover:bg-zinc-800 transition-colors disabled:opacity-50 shadow-md"
                                 >
                                     {isSubmitting ? 'Guardando...' : 'Confirmar Lote'}
                                 </button>

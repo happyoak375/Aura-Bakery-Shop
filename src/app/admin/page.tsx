@@ -7,16 +7,15 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Users, ShoppingBag, PackageSearch, Store, ChefHat, LogOut } from 'lucide-react';
+import { Users, ShoppingBag, PackageSearch, Store, ChefHat, LogOut, TrendingUp, BarChart3 } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
 import { db } from '../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from 'firebase/auth';
 
-// NUEVO: Importamos el store de autenticación
 import { useAuthStore } from '../../lib/store';
 
 const cormorant = Cormorant_Garamond({
@@ -34,6 +33,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'orders' | 'team'>('orders');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newRole, setNewRole] = useState<'admin' | 'barista'>('barista');
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [teamMessage, setTeamMessage] = useState({ type: '', text: '' });
 
@@ -52,7 +52,7 @@ export default function AdminDashboard() {
     }
   }, [isStaffLoggedIn, router]);
 
-  // 2. V1 FIREBASE LISTENER (Only runs if logged in)
+  // 2. V1 FIREBASE LISTENER
   useEffect(() => {
     if (!isStaffLoggedIn) return;
 
@@ -76,7 +76,7 @@ export default function AdminDashboard() {
     router.push('/');
   };
 
-  // --- V1 FUNCIONES INTACTAS ---
+  // --- CREACIÓN DE EQUIPO ---
   const handleCreateTeamMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreatingUser(true);
@@ -84,28 +84,31 @@ export default function AdminDashboard() {
 
     try {
       const mainApp = getApp();
-      const firebaseConfig = mainApp.options;
-
-      const secondaryAppName = 'SecondaryApp';
-      const secondaryApp = getApps().find(app => app.name === secondaryAppName)
-        || initializeApp(firebaseConfig, secondaryAppName);
-
+      const secondaryApp = getApps().find(app => app.name === 'SecondaryApp') || initializeApp(mainApp.options, 'SecondaryApp');
       const secondaryAuth = getAuth(secondaryApp);
 
-      await createUserWithEmailAndPassword(secondaryAuth, newEmail, newPassword);
-      await signOutSecondary(secondaryAuth);
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newEmail, newPassword);
 
-      setTeamMessage({ type: 'success', text: '¡Cuenta de empleado creada exitosamente!' });
+      // Save role to Firestore using the generated UID
+      await setDoc(doc(db, 'staff_roles', userCredential.user.uid), {
+        email: newEmail,
+        role: newRole,
+        createdAt: new Date()
+      });
+
+      await signOutSecondary(secondaryAuth);
+      setTeamMessage({ type: 'success', text: `¡Cuenta de ${newRole} creada exitosamente!` });
       setNewEmail('');
       setNewPassword('');
-
+      setNewRole('barista'); // Reset to default
     } catch (error: any) {
       console.error("Error creating user:", error);
-      setTeamMessage({ type: 'error', text: 'Hubo un error al crear la cuenta. Verifica que el correo no exista ya.' });
+      setTeamMessage({ type: 'error', text: 'Hubo un error al crear la cuenta.' });
     } finally {
       setIsCreatingUser(false);
     }
   };
+
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
@@ -154,16 +157,16 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      {/* --- QUICK ACCESS HUB (NUEVO V2) --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+      {/* --- QUICK ACCESS HUB --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
 
         <Link href="/pos" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
           <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
             <Store size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-zinc-900 text-lg">caja / pos</h3>
-            <p className="text-zinc-500 text-sm">punto de venta físico</p>
+            <h3 className="font-bold text-zinc-900 text-lg">caja</h3>
+            <p className="text-zinc-500 text-sm">terminal pos</p>
           </div>
         </Link>
 
@@ -172,8 +175,8 @@ export default function AdminDashboard() {
             <ChefHat size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-zinc-900 text-lg">comanda cocina</h3>
-            <p className="text-zinc-500 text-sm">pantalla de preparación</p>
+            <h3 className="font-bold text-zinc-900 text-lg">comanda</h3>
+            <p className="text-zinc-500 text-sm">pantalla cocina</p>
           </div>
         </Link>
 
@@ -183,13 +186,31 @@ export default function AdminDashboard() {
           </div>
           <div>
             <h3 className="font-bold text-zinc-900 text-lg">inventario</h3>
-            <p className="text-zinc-500 text-sm">gestión de menú y stock</p>
+            <p className="text-zinc-500 text-sm">gestión de menú</p>
           </div>
         </Link>
 
+        <Link href="/admin/forecast" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+          <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <TrendingUp size={24} />
+          </div>
+          <div>
+            <h3 className="font-bold text-zinc-900 text-lg">proyección</h3>
+            <p className="text-zinc-500 text-sm">cálculo insumos</p>
+          </div>
+        </Link>
+        <Link href="/admin/analytics" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+          <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+            <BarChart3 size={24} />
+          </div>
+          <div>
+            <h3 className="font-bold text-zinc-900 text-lg">métricas</h3>
+            <p className="text-zinc-500 text-sm">ventas y reportes</p>
+          </div>
+        </Link>
       </div>
 
-      {/* --- V1 TABS (INTACTO) --- */}
+      {/* --- V1 TABS --- */}
       <div className="flex gap-4 mb-8 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('orders')}
@@ -206,7 +227,7 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      {/* --- V1 TAB CONTENT (INTACTO) --- */}
+      {/* --- V1 TAB CONTENT --- */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 min-h-[400px]">
         {activeTab === 'orders' ? (
           <div>
@@ -214,7 +235,6 @@ export default function AdminDashboard() {
               <ShoppingBag size={20} /> listado
             </h2>
 
-            {/* CONTROLES DE FILTROS MÚLTIPLES */}
             <div className="flex flex-wrap gap-2 mb-6">
               {allStatuses.map(status => (
                 <button
@@ -340,6 +360,18 @@ export default function AdminDashboard() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">rol del empleado</label>
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value as 'admin' | 'barista')}
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
+                >
+                  <option value="barista">barista (caja y cocina)</option>
+                  <option value="admin">administrador (acceso total)</option>
+                </select>
+              </div>
+
               <button
                 type="submit"
                 disabled={isCreatingUser}
@@ -351,7 +383,6 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
-
     </div>
   );
 }

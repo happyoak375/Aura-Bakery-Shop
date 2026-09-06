@@ -23,10 +23,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
     }
 
+    // 1. Validate Wompi Signature
     let concatenatedString = "";
     signature.properties.forEach((prop: string) => {
       const keys = prop.split(".");
-      concatenatedString += keys.reduce((obj, key) => obj[key], data);
+      concatenatedString += keys.reduce((obj: any, key: string) => obj && obj[key], data);
     });
     concatenatedString += timestamp + eventsSecret;
 
@@ -37,14 +38,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
+    // 2. Process Order Database Update
     const orderId = transaction.reference;
     const paymentStatus = transaction.status;
     const orderRef = doc(db, "orders", orderId);
 
-    let newStatus = "pending";
+    let newStatus = "PENDIENTE";
 
     if (paymentStatus === "APPROVED") {
-      newStatus = "paid";
+      newStatus = "PAGADO";
 
       try {
         const orderSnap = await getDoc(orderRef);
@@ -52,21 +54,23 @@ export async function POST(request: Request) {
         if (orderSnap.exists()) {
           const orderData = orderSnap.data();
           const customerPhone = orderData.customerPhone;
+          
+          // EXACT V2 keys synced from Checkout
+          const customerName = orderData.customerName || "Cliente";
+          const totalAmount = orderData.totalAmount || 0;
 
-          // Using EXACT keys: customer_name and total
-          const customer_name = orderData.customer_name || "Cliente";
-          const totalAmount = orderData.total || 0;
-
+          // Send Customer Receipt
           if (customerPhone) {
             await sendWhatsAppConfirmation(customerPhone, orderId);
           }
 
+          // Send Internal Admin Alert
           const adminPhone = process.env.ADMIN_PHONE_NUMBER;
           if (adminPhone) {
             await sendAdminNotification(
               adminPhone,
               orderId,
-              customer_name,
+              customerName,
               totalAmount
             );
           }
@@ -75,9 +79,10 @@ export async function POST(request: Request) {
         console.error("Notification Error:", err);
       }
     } else if (paymentStatus === "DECLINED" || paymentStatus === "ERROR") {
-      newStatus = "failed";
+      newStatus = paymentStatus; // Save specific failure reason
     }
 
+    // Update Firestore
     await updateDoc(orderRef, {
       paymentStatus: newStatus,
       wompiTransactionId: transaction.id,

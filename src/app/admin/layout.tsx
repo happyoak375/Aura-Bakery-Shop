@@ -6,10 +6,11 @@ import Link from 'next/link';
 import { LogOut, LayoutDashboard, Settings } from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
-// Correct Auth Imports
+// Auth Imports
 import { useAuthStore } from '../../lib/store';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 const cormorant = Cormorant_Garamond({
     subsets: ["latin"],
@@ -20,35 +21,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const router = useRouter();
     const pathname = usePathname();
 
-    // Pull your updated Firebase auth state from the Zustand store
-    const { isStaffLoggedIn, setStaffUser, employeeEmail, logout } = useAuthStore();
+    const { isStaffLoggedIn, setStaffUser, employeeEmail, role, logout } = useAuthStore();
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
 
-        // Listen to Firebase directly to see which employee is logged in
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user && user.email) {
-                setStaffUser(user.email);
+                try {
+                    const roleDocRef = doc(db, 'staff_roles', user.uid);
+                    const roleDocSnap = await getDoc(roleDocRef);
+
+                    let assignedRole: 'admin' | 'barista' = 'barista';
+                    if (roleDocSnap.exists()) {
+                        assignedRole = roleDocSnap.data().role;
+                    }
+
+                    setStaffUser(user.email, assignedRole);
+
+                    // Hard Route Guard: Boot baristas out of settings and inventory
+                    if (assignedRole === 'barista' && (pathname.includes('/config') || pathname.includes('/inventory'))) {
+                        router.push('/admin');
+                    }
+
+                } catch (error) {
+                    console.error("Error fetching role:", error);
+                    setStaffUser(user.email, 'barista');
+                }
             } else {
-                setStaffUser(null);
-                // Only redirect if they aren't already trying to log in
-                if (window.location.pathname !== '/admin/login' && window.location.pathname !== '/') {
-                    router.push('/');
+                setStaffUser(null, null);
+                if (pathname !== '/admin/login' && pathname !== '/') {
+                    router.push('/admin/login');
                 }
             }
         });
 
         return () => unsubscribe();
-    }, [router, setStaffUser]);
+    }, [pathname, router, setStaffUser]);
 
     const handleLogout = async () => {
         await logout();
-        router.push('/');
+        router.push('/admin/login');
     };
 
-    // Prevent hydration errors by waiting to render until mounted
     if (!isMounted) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 text-zinc-400 font-medium">
@@ -57,12 +73,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         );
     }
 
-    // Hide the sidebar if we are actively on the login screen
     if (pathname === '/admin/login') {
         return <>{children}</>;
     }
 
-    // Show verification state if not logged in but trying to access secure routes
     if (!isStaffLoggedIn) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 text-zinc-400 font-medium">
@@ -86,8 +100,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex sticky top-0 h-screen">
                 <div className="p-6 border-b border-gray-100">
                     <h2 className={`text-2xl text-zinc-900 ${cormorant.className}`}>aura admin</h2>
-                    {/* Now shows the exact email of the employee! */}
                     <p className="text-xs text-zinc-500 truncate mt-1">{employeeEmail || 'Equipo Aura'}</p>
+
+                    {/* Visual Role Badge */}
+                    <span className={`inline-block mt-2 px-2 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md ${role === 'admin' ? 'bg-black text-white' : 'bg-blue-100 text-blue-700'}`}>
+                        {role || 'Cargando...'}
+                    </span>
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2 mt-2">
@@ -97,12 +115,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     >
                         <LayoutDashboard size={18} /> panel
                     </Link>
-                    <Link
-                        href="/admin/config"
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${pathname === '/admin/config' ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
-                    >
-                        <Settings size={18} /> configuración
-                    </Link>
+
+                    {/* 🔒 RBAC: Only Admins can see the Settings link */}
+                    {role === 'admin' && (
+                        <Link
+                            href="/admin/config"
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${pathname === '/admin/config' ? 'bg-black text-white shadow-md' : 'text-zinc-600 hover:bg-gray-50'}`}
+                        >
+                            <Settings size={18} /> configuración
+                        </Link>
+                    )}
                 </nav>
 
                 <div className="p-4 border-t border-gray-100">
@@ -125,9 +147,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link href="/admin" className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${pathname === '/admin' ? 'text-black' : 'text-zinc-400'}`}>
                     <LayoutDashboard size={20} />
                 </Link>
-                <Link href="/admin/config" className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${pathname === '/admin/config' ? 'text-black' : 'text-zinc-400'}`}>
-                    <Settings size={20} />
-                </Link>
+
+                {/* 🔒 RBAC: Only Admins can see the Mobile Settings link */}
+                {role === 'admin' && (
+                    <Link href="/admin/config" className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${pathname === '/admin/config' ? 'text-black' : 'text-zinc-400'}`}>
+                        <Settings size={20} />
+                    </Link>
+                )}
             </nav>
 
         </div>
