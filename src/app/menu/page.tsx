@@ -13,7 +13,7 @@ import Image from 'next/image';
 import { Clock, Zap, MessageCircle } from 'lucide-react';
 // 2. Import the new fetch function and the Product type
 import { AvailabilityType, Product } from '../../lib/mockData';
-import { fetchProducts } from '../../lib/api';
+import { fetchProducts, getLocalProductImage } from '../../lib/api';
 
 // ==========================================
 // 1. HELPER FUNCTIONS
@@ -93,11 +93,11 @@ export default function MenuPage() {
           <>
             {/* --- CATEGORY NAVIGATION --- */}
             <div className="flex overflow-x-auto gap-3 pb-4 mb-4 scrollbar-hide -mx-6 px-6 md:mx-0 md:px-0">
-              {categories.map((category) => (
+              {categories.map((category, index) => (
                 <button
-                  key={category}
+                  key={`${category}-${index}`}
                   onClick={() => setActiveCategory(category)}
-                  className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all active:scale-95 ${activeCategory === category ? 'bg-black text-white shadow-md' : 'bg-white text-zinc-600 border border-gray-200 hover:border-gray-300' }`}
+                  className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all active:scale-95 ${activeCategory === category ? 'bg-black text-white shadow-md' : 'bg-white text-zinc-600 border border-gray-200 hover:border-gray-300'}`}
                 >
                   {category}
                 </button>
@@ -121,14 +121,11 @@ export default function MenuPage() {
                         {badge.icon} {badge.text}
                       </div>
 
-                      <Image
-                        src={product.imageUrl}
+                      <img
+                        src={product.imageUrl || getLocalProductImage(product.name)}
                         alt={product.name}
-                        fill
-                        priority
-                        unoptimized
-                        sizes="(max-width: 768px) 50vw, 33vw"
-                        className="object-cover"
+                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/images/logo-aura.png' }}
                       />
                     </div>
 

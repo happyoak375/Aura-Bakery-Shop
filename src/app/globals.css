@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+
+@media print {
+  /* Hide everything on the screen by default */
+  body * {
+    visibility: hidden;
+  }
+  /* Only show the receipt container */
+  #printable-receipt, #printable-receipt * {
+    visibility: visible;
+  }
+  #printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 58mm; /* Jaltech printer width */
+    margin: 0;
+    padding: 0;
+    font-family: monospace; /* Best for thermal printers */
+    font-size: 12px;
+    color: black;
+  }
+}

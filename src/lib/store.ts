@@ -5,14 +5,16 @@
  */
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import {
   Product,
   ProductVariant,
   ProductPreference,
   AvailabilityType,
 } from "./mockData";
-import * as fbq from './fpixel'; // Centralizador
-
+import * as fbq from './fpixel'; 
+import { auth } from './firebase';
+import { signOut } from "firebase/auth";
 
 // ==========================================
 // 1. TYPES & INTERFACES
@@ -133,7 +135,7 @@ const calculateMostRestrictiveAvailability = (
 };
 
 // ==========================================
-// 3. STORE IMPLEMENTATION
+// 3. CART STORE IMPLEMENTATION
 // ==========================================
 
 export const useCartStore = create<CartStore>((set, get) => ({
@@ -186,7 +188,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
     } else {
       // Otherwise, create a brand new line item
       const newItem: CartItem = {
-        ...product, // Inherit base product data (name, image, etc.)
+        ...product, 
         cartItemId,
         selectedVariant,
         selectedPreferences,
@@ -245,5 +247,40 @@ export const useCartStore = create<CartStore>((set, get) => ({
       return get().directPurchaseItem!.availabilityType;
     }
     return calculateMostRestrictiveAvailability(get().items);
+  },
+}));
+
+// ==========================================
+// 4. STAFF AUTHENTICATION STORE (NUEVO)
+// ==========================================
+
+export type StaffRole = 'admin' | 'barista' | null;
+
+interface AuthState {
+  isStaffLoggedIn: boolean;
+  employeeEmail: string | null;
+  role: StaffRole;
+  setStaffUser: (email: string | null, role?: StaffRole) => void;
+  logout: () => Promise<void>;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  isStaffLoggedIn: false,
+  employeeEmail: null,
+  role: null,
+  
+  setStaffUser: (email, role = null) => set({ 
+    isStaffLoggedIn: !!email, 
+    employeeEmail: email,
+    role: role
+  }),
+
+  logout: async () => {
+    try {
+      await signOut(auth);
+      set({ isStaffLoggedIn: false, employeeEmail: null, role: null });
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
   },
 }));
