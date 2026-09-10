@@ -1,0 +1,32 @@
+{
+  "total_inventory_items": 55,
+  "raw_material": 28,
+  "wip": 5,
+  "finished_good": 22,
+  "items_with_bom": 14,
+  "items_without_bom": 41,
+  "broken_bom_references": 1,
+  "distinct_units": [
+    "kg",
+    "gr",
+    "unidades",
+    "Unidades",
+    "taza",
+    "g",
+    "vaso",
+    "porción"
+  ],
+  "document_fields": [
+    "unit",
+    "costPerUnit",
+    "minStockLevel",
+    "currentStock",
+    "type",
+    "name",
+    "salesChannels",
+    "imageUrl",
+    "category",
+    "bom",
+    "id"
+  ]
+}
