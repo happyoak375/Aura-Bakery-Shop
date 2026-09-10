@@ -1,0 +1,1185 @@
+[
+  {
+    "id": "00001",
+    "unit": "kg",
+    "costPerUnit": 15.5,
+    "minStockLevel": 2,
+    "currentStock": 20,
+    "type": "finished_good",
+    "name": "Café en Grano (House Blend)"
+  },
+  {
+    "id": "3H7iJvrsjkIpd8eKbgcf",
+    "unit": "gr",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 50,
+    "costPerUnit": 100,
+    "currentStock": 1000,
+    "imageUrl": "",
+    "category": "",
+    "bom": [],
+    "type": "raw_material",
+    "name": "Cocoa"
+  },
+  {
+    "id": "5FIacFGS6CaOe6HCm4pP",
+    "category": "",
+    "imageUrl": "",
+    "unit": "gr",
+    "costPerUnit": 200,
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 500,
+    "currentStock": 3000,
+    "bom": [],
+    "type": "raw_material",
+    "name": "Covertura de chocolate blanco"
+  },
+  {
+    "id": "74kNjeFiFgVcRBxzrMHj",
+    "category": "Muffins",
+    "bom": [
+      {
+        "inventoryItemId": "tiJfHqAK2ZUHVI43CdRS",
+        "quantity": 11.62
+      },
+      {
+        "quantity": 0.49,
+        "inventoryItemId": "hfYmna1OS0ddFuRqK2iM"
+      },
+      {
+        "inventoryItemId": "9xzNG6ivbiENiE8h9y86",
+        "quantity": 6.12
+      },
+      {
+        "inventoryItemId": "M62EOPptlXniVvK7WAoF",
+        "quantity": 17.13
+      },
+      {
+        "inventoryItemId": "fSnWb6KZSBWpI0IIhE4h",
+        "quantity": 15.29
+      },
+      {
+        "quantity": 0.55,
+        "inventoryItemId": "srbEmhYf69vViqFDCcBQ"
+      },
+      {
+        "quantity": 0.18,
+        "inventoryItemId": "TN3dhXTrPsYp5FB5jPdM"
+      },
+      {
+        "quantity": 0.18,
+        "inventoryItemId": "p6WA104EyTBbXPexjilZ"
+      },
+      {
+        "inventoryItemId": "3H7iJvrsjkIpd8eKbgcf",
+        "quantity": 2.51
+      },
+      {
+        "inventoryItemId": "NDzXFrN40mqLGLOIH2IZ",
+        "quantity": 13.46
+      },
+      {
+        "quantity": 7.34,
+        "inventoryItemId": "pVUiLPehraHcBycL5C3u"
+      }
+    ],
+    "costPerUnit": 6000,
+    "imageUrl": "",
+    "currentStock": 4,
+    "unit": "unidades",
+    "type": "finished_good",
+    "name": "Muffin de Chocolate",
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "minStockLevel": 2
+  },
+  {
+    "id": "7WYgRxOXPTBm56pwpcpu",
+    "costPerUnit": 90,
+    "bom": [],
+    "unit": "gr",
+    "name": "Crema de leche",
+    "type": "raw_material",
+    "imageUrl": "",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 500,
+    "category": "",
+    "currentStock": 49497
+  },
+  {
+    "id": "9xzNG6ivbiENiE8h9y86",
+    "bom": [],
+    "unit": "gr",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 250,
+    "type": "raw_material",
+    "name": "Huevos",
+    "currentStock": 1760,
+    "costPerUnit": 50,
+    "imageUrl": "",
+    "category": ""
+  },
+  {
+    "id": "BTPWgEc3BZMUocStZRQn",
+    "unit": "Unidades",
+    "costPerUnit": 500,
+    "imageUrl": "",
+    "category": "",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 1,
+    "bom": [],
+    "name": "limon",
+    "currentStock": 10,
+    "type": "raw_material"
+  },
+  {
+    "id": "M62EOPptlXniVvK7WAoF",
+    "unit": "gr",
+    "currentStock": 500,
+    "imageUrl": "",
+    "costPerUnit": 100,
+    "minStockLevel": 0,
+    "salesChannels": [
+      "pos"
+    ],
+    "category": "",
+    "bom": [],
+    "type": "raw_material",
+    "name": "Yogurt Griego"
+  },
+  {
+    "id": "NDzXFrN40mqLGLOIH2IZ",
+    "bom": [],
+    "type": "raw_material",
+    "name": "Chocolate semiamargo",
+    "costPerUnit": 100,
+    "currentStock": 1000,
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 250,
+    "category": "",
+    "unit": "gr",
+    "imageUrl": ""
+  },
+  {
+    "id": "NYfE213uC3PCsCy0L9sU",
+    "costPerUnit": 6,
+    "bom": [],
+    "category": "",
+    "imageUrl": "",
+    "minStockLevel": 2000,
+    "salesChannels": [
+      "pos"
+    ],
+    "unit": "gr",
+    "type": "raw_material",
+    "name": "Azucar morena",
+    "currentStock": 5000
+  },
+  {
+    "id": "Nrr8wh6hMoDnCORZrAgA",
+    "unit": "gr",
+    "currentStock": 500,
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 60,
+    "costPerUnit": 100,
+    "imageUrl": "",
+    "category": "",
+    "bom": [],
+    "name": "Glucosa",
+    "type": "raw_material"
+  },
+  {
+    "id": "Qo55xfJsLpKq39LVybOX",
+    "currentStock": 230,
+    "minStockLevel": 230,
+    "salesChannels": [
+      "pos"
+    ],
+    "name": "Arándalos",
+    "type": "raw_material",
+    "category": "",
+    "imageUrl": "",
+    "unit": "gr",
+    "bom": [],
+    "costPerUnit": 0
+  },
+  {
+    "id": "TN3dhXTrPsYp5FB5jPdM",
+    "minStockLevel": 100,
+    "salesChannels": [
+      "pos"
+    ],
+    "costPerUnit": 10,
+    "type": "raw_material",
+    "currentStock": 1000,
+    "name": "Bicarbonato",
+    "imageUrl": "",
+    "unit": "gr",
+    "category": "",
+    "bom": []
+  },
+  {
+    "id": "U2eprL2TAPvPj5ePHEDA",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 20,
+    "name": "Canela",
+    "type": "raw_material",
+    "costPerUnit": 30,
+    "bom": [],
+    "unit": "gr",
+    "currentStock": 92,
+    "category": "",
+    "imageUrl": ""
+  },
+  {
+    "id": "U9U6XuZLRBIgyplbEnQv",
+    "unit": "gr",
+    "costPerUnit": 100,
+    "bom": [],
+    "minStockLevel": 10,
+    "salesChannels": [
+      "pos"
+    ],
+    "imageUrl": "",
+    "category": "",
+    "type": "raw_material",
+    "currentStock": 50,
+    "name": "Colorante Rojo"
+  },
+  {
+    "id": "americano",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 0,
+    "unit": "taza",
+    "category": "Café",
+    "bom": [
+      {
+        "quantity": 36,
+        "inventoryItemId": "cafe-grano"
+      },
+      {
+        "quantity": 1,
+        "inventoryItemId": "vaso-12oz"
+      }
+    ],
+    "currentStock": 100,
+    "name": "Americano",
+    "costPerUnit": 7000,
+    "type": "finished_good"
+  },
+  {
+    "id": "aura-cookie",
+    "imageUrl": "",
+    "costPerUnit": 5000,
+    "minStockLevel": 8,
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "bom": [
+      {
+        "quantity": 9.03,
+        "inventoryItemId": "tiJfHqAK2ZUHVI43CdRS"
+      },
+      {
+        "quantity": 9.94,
+        "inventoryItemId": "NYfE213uC3PCsCy0L9sU"
+      },
+      {
+        "quantity": 13.73,
+        "inventoryItemId": "mantequilla"
+      },
+      {
+        "inventoryItemId": "9xzNG6ivbiENiE8h9y86",
+        "quantity": 0.17
+      },
+      {
+        "inventoryItemId": "hfYmna1OS0ddFuRqK2iM",
+        "quantity": 0.22
+      },
+      {
+        "inventoryItemId": "fSnWb6KZSBWpI0IIhE4h",
+        "quantity": 18.97
+      },
+      {
+        "quantity": 9.03,
+        "inventoryItemId": "harina-trigo"
+      },
+      {
+        "inventoryItemId": "p6WA104EyTBbXPexjilZ",
+        "quantity": 0.51
+      },
+      {
+        "inventoryItemId": "srbEmhYf69vViqFDCcBQ",
+        "quantity": 0.23
+      },
+      {
+        "inventoryItemId": "TN3dhXTrPsYp5FB5jPdM",
+        "quantity": 0.07
+      },
+      {
+        "inventoryItemId": "jJTe3BNFobMdb1t3TnJI",
+        "quantity": 4.07
+      },
+      {
+        "quantity": 4.07,
+        "inventoryItemId": "5FIacFGS6CaOe6HCm4pP"
+      }
+    ],
+    "category": "Cookies",
+    "currentStock": 3,
+    "unit": "unidades",
+    "name": "Aura Cookie",
+    "type": "finished_good"
+  },
+  {
+    "id": "cafe-grano",
+    "minStockLevel": 1000,
+    "salesChannels": [],
+    "name": "Café en Grano (House Blend)",
+    "type": "raw_material",
+    "imageUrl": "",
+    "bom": [],
+    "category": "",
+    "unit": "gr",
+    "currentStock": 5000,
+    "costPerUnit": 1
+  },
+  {
+    "id": "caramel-latte",
+    "type": "finished_good",
+    "name": "Caramel Latte",
+    "costPerUnit": 11000,
+    "category": "Café",
+    "minStockLevel": 10,
+    "salesChannels": [
+      "pos",
+      "rappi"
+    ],
+    "currentStock": 50,
+    "unit": "taza"
+  },
+  {
+    "id": "cruller",
+    "currentStock": 0,
+    "type": "finished_good",
+    "name": "Cruller",
+    "bom": [
+      {
+        "inventoryItemId": "w6QF1akLmOmOXbSzkWar",
+        "quantity": 102
+      },
+      {
+        "quantity": 22.8,
+        "inventoryItemId": "mantequilla"
+      },
+      {
+        "quantity": 1.2,
+        "inventoryItemId": "p6WA104EyTBbXPexjilZ"
+      },
+      {
+        "inventoryItemId": "tiJfHqAK2ZUHVI43CdRS",
+        "quantity": 6
+      },
+      {
+        "inventoryItemId": "harina-trigo",
+        "quantity": 70
+      },
+      {
+        "quantity": 70,
+        "inventoryItemId": "9xzNG6ivbiENiE8h9y86"
+      },
+      {
+        "quantity": 2.4,
+        "inventoryItemId": "hfYmna1OS0ddFuRqK2iM"
+      }
+    ],
+    "minStockLevel": 0,
+    "salesChannels": [],
+    "costPerUnit": 12000,
+    "category": "Cookies",
+    "unit": "unidades",
+    "imageUrl": ""
+  },
+  {
+    "id": "dV9UT22L8rOC07KJi8Sh",
+    "imageUrl": "",
+    "bom": [
+      {
+        "quantity": 1,
+        "inventoryItemId": "u0GMPhut4XYrFWG5wJqc"
+      },
+      {
+        "quantity": 1,
+        "inventoryItemId": "dhicyzVKxsJHIgzf0cUe"
+      }
+    ],
+    "category": "",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 100,
+    "costPerUnit": 3000,
+    "currentStock": 30,
+    "unit": "g",
+    "name": "Nata Pasteis",
+    "type": "wip"
+  },
+  {
+    "id": "dark-chocolate-entremet",
+    "unit": "unidades",
+    "costPerUnit": 22000,
+    "bom": [],
+    "imageUrl": "",
+    "name": "Dark Chocolate Entremet",
+    "type": "finished_good",
+    "category": "Clásicos",
+    "currentStock": 8,
+    "salesChannels": [],
+    "minStockLevel": 2
+  },
+  {
+    "id": "dhicyzVKxsJHIgzf0cUe",
+    "unit": "g",
+    "currentStock": 0,
+    "costPerUnit": 0,
+    "imageUrl": "",
+    "name": "Crema base pasteis",
+    "bom": [
+      {
+        "inventoryItemId": "leche-entera",
+        "quantity": 25.13
+      },
+      {
+        "inventoryItemId": "7WYgRxOXPTBm56pwpcpu",
+        "quantity": 12.56
+      },
+      {
+        "inventoryItemId": "harina-trigo",
+        "quantity": 2.01
+      },
+      {
+        "quantity": 0.3,
+        "inventoryItemId": "9xzNG6ivbiENiE8h9y86"
+      }
+    ],
+    "type": "wip",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 0,
+    "category": ""
+  },
+  {
+    "id": "ec6jcnCIMjsQGgHJVUg1",
+    "imageUrl": "",
+    "type": "raw_material",
+    "costPerUnit": 300,
+    "category": "",
+    "name": "Queso Crema",
+    "unit": "gr",
+    "currentStock": 5000,
+    "minStockLevel": 1000,
+    "salesChannels": [
+      "pos"
+    ],
+    "bom": []
+  },
+  {
+    "id": "espresso",
+    "unit": "taza",
+    "minStockLevel": 20,
+    "salesChannels": [
+      "pos"
+    ],
+    "name": "Espresso",
+    "type": "finished_good",
+    "currentStock": 100,
+    "costPerUnit": 6,
+    "category": "Café"
+  },
+  {
+    "id": "fSnWb6KZSBWpI0IIhE4h",
+    "currentStock": 48962,
+    "type": "raw_material",
+    "imageUrl": "",
+    "name": "Harina de trigo Fuerte",
+    "category": "Materia Prima",
+    "bom": [],
+    "unit": "gr",
+    "minStockLevel": 1000,
+    "salesChannels": [
+      "pos"
+    ],
+    "costPerUnit": 5500
+  },
+  {
+    "id": "harina-trigo",
+    "minStockLevel": 5000,
+    "salesChannels": [],
+    "unit": "gr",
+    "category": "Materia prima",
+    "imageUrl": "",
+    "bom": [],
+    "currentStock": 19475,
+    "name": "Harina de Trigo Panadera",
+    "type": "raw_material",
+    "costPerUnit": 5500
+  },
+  {
+    "id": "hfYmna1OS0ddFuRqK2iM",
+    "bom": [],
+    "imageUrl": "",
+    "category": "",
+    "unit": "gr",
+    "minStockLevel": 200,
+    "salesChannels": [
+      "pos"
+    ],
+    "type": "raw_material",
+    "name": "Esencia de Vainilla",
+    "costPerUnit": 21,
+    "currentStock": 1000
+  },
+  {
+    "id": "island-time-smoothie",
+    "currentStock": 30,
+    "minStockLevel": 5,
+    "salesChannels": [
+      "pos"
+    ],
+    "category": "Bebidas",
+    "name": "Island Time Smoothie",
+    "type": "finished_good",
+    "costPerUnit": 13,
+    "unit": "vaso"
+  },
+  {
+    "id": "jJTe3BNFobMdb1t3TnJI",
+    "costPerUnit": 200,
+    "unit": "g",
+    "category": "",
+    "currentStock": 3000,
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 225,
+    "name": "Covertura de chocolate negro",
+    "type": "raw_material"
+  },
+  {
+    "id": "latte",
+    "unit": "taza",
+    "salesChannels": [
+      "pos",
+      "rappi"
+    ],
+    "minStockLevel": 0,
+    "category": "Café",
+    "costPerUnit": 7000,
+    "bom": [
+      {
+        "quantity": 18,
+        "inventoryItemId": "cafe-grano"
+      },
+      {
+        "quantity": 200,
+        "inventoryItemId": "leche-entera"
+      },
+      {
+        "inventoryItemId": "vaso-12oz",
+        "quantity": 1
+      }
+    ],
+    "currentStock": 0,
+    "type": "finished_good",
+    "name": "Latte"
+  },
+  {
+    "id": "lava-cookie-doble-chocolate",
+    "costPerUnit": 15000,
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "minStockLevel": 5,
+    "currentStock": 25,
+    "unit": "unidades",
+    "bom": [
+      {
+        "quantity": 11.88,
+        "inventoryItemId": "tiJfHqAK2ZUHVI43CdRS"
+      },
+      {
+        "quantity": 13.06,
+        "inventoryItemId": "NYfE213uC3PCsCy0L9sU"
+      },
+      {
+        "inventoryItemId": "mantequilla",
+        "quantity": 18.05
+      },
+      {
+        "inventoryItemId": "9xzNG6ivbiENiE8h9y86",
+        "quantity": 0.16
+      },
+      {
+        "inventoryItemId": "hfYmna1OS0ddFuRqK2iM",
+        "quantity": 0.29
+      },
+      {
+        "quantity": 24.94,
+        "inventoryItemId": "fSnWb6KZSBWpI0IIhE4h"
+      },
+      {
+        "quantity": 11.88,
+        "inventoryItemId": "harina-trigo"
+      },
+      {
+        "quantity": 0.67,
+        "inventoryItemId": "p6WA104EyTBbXPexjilZ"
+      },
+      {
+        "inventoryItemId": "srbEmhYf69vViqFDCcBQ",
+        "quantity": 0.31
+      },
+      {
+        "quantity": 0.1,
+        "inventoryItemId": "TN3dhXTrPsYp5FB5jPdM"
+      },
+      {
+        "quantity": 10.69,
+        "inventoryItemId": "jJTe3BNFobMdb1t3TnJI"
+      },
+      {
+        "quantity": 9.3,
+        "inventoryItemId": "jJTe3BNFobMdb1t3TnJI"
+      },
+      {
+        "quantity": 9.3,
+        "inventoryItemId": "7WYgRxOXPTBm56pwpcpu"
+      },
+      {
+        "quantity": 1.4,
+        "inventoryItemId": "Nrr8wh6hMoDnCORZrAgA"
+      }
+    ],
+    "type": "finished_good",
+    "name": "Lava Cookie Doble Chocolate",
+    "imageUrl": "",
+    "category": "Cookies"
+  },
+  {
+    "id": "lava-cookie-red-velvet",
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "minStockLevel": 5,
+    "name": "Lava Cookie Red Velvet",
+    "type": "finished_good",
+    "category": "Cookies",
+    "unit": "unidades",
+    "costPerUnit": 15000,
+    "bom": [
+      {
+        "quantity": 11.71,
+        "inventoryItemId": "tiJfHqAK2ZUHVI43CdRS"
+      },
+      {
+        "inventoryItemId": "NYfE213uC3PCsCy0L9sU",
+        "quantity": 12.88
+      },
+      {
+        "inventoryItemId": "mantequilla",
+        "quantity": 17.79
+      },
+      {
+        "quantity": 0.16,
+        "inventoryItemId": "9xzNG6ivbiENiE8h9y86"
+      },
+      {
+        "quantity": 0.28,
+        "inventoryItemId": "hfYmna1OS0ddFuRqK2iM"
+      },
+      {
+        "quantity": 24.58,
+        "inventoryItemId": "fSnWb6KZSBWpI0IIhE4h"
+      },
+      {
+        "inventoryItemId": "harina-trigo",
+        "quantity": 11.71
+      },
+      {
+        "inventoryItemId": "p6WA104EyTBbXPexjilZ",
+        "quantity": 0.66
+      },
+      {
+        "inventoryItemId": "srbEmhYf69vViqFDCcBQ",
+        "quantity": 0.3
+      },
+      {
+        "inventoryItemId": "TN3dhXTrPsYp5FB5jPdM",
+        "quantity": 0.09
+      },
+      {
+        "quantity": 10.54,
+        "inventoryItemId": "5FIacFGS6CaOe6HCm4pP"
+      },
+      {
+        "quantity": 6.67,
+        "inventoryItemId": "5FIacFGS6CaOe6HCm4pP"
+      },
+      {
+        "quantity": 6.67,
+        "inventoryItemId": "7WYgRxOXPTBm56pwpcpu"
+      },
+      {
+        "quantity": 6.67,
+        "inventoryItemId": "ec6jcnCIMjsQGgHJVUg1"
+      }
+    ],
+    "imageUrl": "",
+    "currentStock": 20
+  },
+  {
+    "id": "leche-entera",
+    "unit": "gr",
+    "costPerUnit": 3500,
+    "currentStock": 98994,
+    "minStockLevel": 2000,
+    "salesChannels": [],
+    "imageUrl": "",
+    "bom": [],
+    "type": "raw_material",
+    "name": "Leche Entera",
+    "category": ""
+  },
+  {
+    "id": "mYI7llFK5LUVAZGjbUtE",
+    "minStockLevel": 2,
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "name": "Muffin queso y tocineta",
+    "type": "finished_good",
+    "unit": "unidades",
+    "costPerUnit": 6000,
+    "currentStock": 6,
+    "category": "Clásicos",
+    "imageUrl": "",
+    "bom": []
+  },
+  {
+    "id": "mantequilla",
+    "imageUrl": "",
+    "currentStock": 4911,
+    "bom": [],
+    "category": "",
+    "salesChannels": [],
+    "minStockLevel": 1000,
+    "unit": "gr",
+    "name": "Mantequilla",
+    "type": "raw_material",
+    "costPerUnit": 100
+  },
+  {
+    "id": "maracuya-cloud",
+    "imageUrl": "",
+    "category": "Clásicos",
+    "currentStock": 8,
+    "unit": "unidades",
+    "bom": [],
+    "type": "finished_good",
+    "name": "Maracuya Cloud",
+    "costPerUnit": 22000,
+    "minStockLevel": 2,
+    "salesChannels": []
+  },
+  {
+    "id": "oOMMzk0HddSbyo5M0TEJ",
+    "category": "",
+    "imageUrl": "",
+    "type": "wip",
+    "name": "Masa muffins salados",
+    "unit": "unidades",
+    "currentStock": 0,
+    "costPerUnit": 0,
+    "minStockLevel": 0,
+    "salesChannels": [
+      "pos"
+    ],
+    "bom": [
+      {
+        "quantity": 100,
+        "inventoryItemId": "mantequilla"
+      },
+      {
+        "inventoryItemId": "",
+        "quantity": 1
+      }
+    ]
+  },
+  {
+    "id": "p6WA104EyTBbXPexjilZ",
+    "costPerUnit": 100,
+    "name": "Sal",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 100,
+    "type": "raw_material",
+    "bom": [],
+    "imageUrl": "",
+    "category": "",
+    "unit": "gr",
+    "currentStock": 968
+  },
+  {
+    "id": "pVUiLPehraHcBycL5C3u",
+    "name": "Aceite neutro de girasol",
+    "type": "raw_material",
+    "bom": [],
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 150,
+    "costPerUnit": 100,
+    "currentStock": 1000,
+    "category": "",
+    "unit": "gr",
+    "imageUrl": ""
+  },
+  {
+    "id": "pasteis-de-nata",
+    "unit": "unidades",
+    "minStockLevel": 10,
+    "salesChannels": [
+      "web",
+      "rappi",
+      "pos"
+    ],
+    "imageUrl": "",
+    "category": "Clásicos",
+    "bom": [
+      {
+        "inventoryItemId": "u2wegdOYcF4LNiZL1TcL",
+        "quantity": 1
+      },
+      {
+        "inventoryItemId": "dV9UT22L8rOC07KJi8Sh",
+        "quantity": 1
+      }
+    ],
+    "costPerUnit": 8000,
+    "name": "Pasteis de Nata",
+    "type": "finished_good",
+    "currentStock": 10
+  },
+  {
+    "id": "qCfIUm3YZZmy85FwuDFJ",
+    "unit": "unidades",
+    "currentStock": 5,
+    "minStockLevel": 2,
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "costPerUnit": 6000,
+    "category": "Clásico",
+    "name": "Muffin de queso",
+    "imageUrl": "",
+    "bom": [],
+    "type": "finished_good"
+  },
+  {
+    "id": "selva-negra",
+    "bom": [],
+    "unit": "porción",
+    "type": "finished_good",
+    "name": "Selva Negra",
+    "currentStock": 10,
+    "imageUrl": "",
+    "salesChannels": [],
+    "minStockLevel": 2,
+    "costPerUnit": 18,
+    "category": "Clásicos"
+  },
+  {
+    "id": "snickers-latte",
+    "minStockLevel": 10,
+    "salesChannels": [
+      "pos"
+    ],
+    "name": "Snickers Latte",
+    "currentStock": 50,
+    "costPerUnit": 11,
+    "type": "finished_good",
+    "category": "Café",
+    "unit": "taza"
+  },
+  {
+    "id": "srbEmhYf69vViqFDCcBQ",
+    "category": "",
+    "unit": "gr",
+    "minStockLevel": 100,
+    "salesChannels": [
+      "pos"
+    ],
+    "imageUrl": "",
+    "bom": [],
+    "costPerUnit": 10,
+    "type": "raw_material",
+    "currentStock": 500,
+    "name": "Polvo de hornear"
+  },
+  {
+    "id": "tarta-vasca",
+    "unit": "porción",
+    "costPerUnit": 16000,
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "minStockLevel": 3,
+    "imageUrl": "",
+    "currentStock": 12,
+    "category": "Clásicos",
+    "name": "Tarta Vasca",
+    "bom": [],
+    "type": "finished_good"
+  },
+  {
+    "id": "tiJfHqAK2ZUHVI43CdRS",
+    "unit": "gr",
+    "costPerUnit": 100,
+    "currentStock": 2940,
+    "bom": [],
+    "name": "Azucar",
+    "type": "raw_material",
+    "imageUrl": "",
+    "category": "",
+    "salesChannels": [
+      "pos"
+    ],
+    "minStockLevel": 1000
+  },
+  {
+    "id": "tiramisu-clásico",
+    "unit": "porción",
+    "currentStock": 15,
+    "bom": [],
+    "category": "Clásicos",
+    "costPerUnit": 14000,
+    "type": "finished_good",
+    "imageUrl": "",
+    "name": "Tiramisu Clásico",
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "minStockLevel": 4
+  },
+  {
+    "id": "u0GMPhut4XYrFWG5wJqc",
+    "unit": "g",
+    "category": "",
+    "imageUrl": "",
+    "minStockLevel": 0,
+    "salesChannels": [
+      "pos"
+    ],
+    "costPerUnit": 500,
+    "currentStock": 0,
+    "bom": [
+      {
+        "inventoryItemId": "BTPWgEc3BZMUocStZRQn",
+        "quantity": 0.05
+      },
+      {
+        "quantity": 26.49,
+        "inventoryItemId": "tiJfHqAK2ZUHVI43CdRS"
+      },
+      {
+        "inventoryItemId": "U2eprL2TAPvPj5ePHEDA",
+        "quantity": 0.21
+      },
+      {
+        "quantity": 13.25,
+        "inventoryItemId": "w6QF1akLmOmOXbSzkWar"
+      }
+    ],
+    "type": "wip",
+    "name": "Jarabe pasteis"
+  },
+  {
+    "id": "u2wegdOYcF4LNiZL1TcL",
+    "bom": [
+      {
+        "quantity": 25.93,
+        "inventoryItemId": "fSnWb6KZSBWpI0IIhE4h"
+      },
+      {
+        "quantity": 11.11,
+        "inventoryItemId": "harina-trigo"
+      },
+      {
+        "inventoryItemId": "mantequilla",
+        "quantity": 2.22
+      },
+      {
+        "inventoryItemId": "p6WA104EyTBbXPexjilZ",
+        "quantity": 0.74
+      }
+    ],
+    "imageUrl": "",
+    "unit": "g",
+    "category": "",
+    "currentStock": 30,
+    "name": "Hojaldre",
+    "costPerUnit": 5000,
+    "type": "wip",
+    "minStockLevel": 20,
+    "salesChannels": [
+      "pos"
+    ]
+  },
+  {
+    "id": "vaso-12oz",
+    "name": "Vaso de Cartón 12oz",
+    "currentStock": 500,
+    "type": "raw_material",
+    "unit": "unidades",
+    "costPerUnit": 0.2,
+    "minStockLevel": 100
+  },
+  {
+    "id": "verde-vivo",
+    "costPerUnit": 13,
+    "minStockLevel": 5,
+    "salesChannels": [
+      "pos"
+    ],
+    "unit": "vaso",
+    "type": "finished_good",
+    "name": "Verde Vivo",
+    "currentStock": 30,
+    "category": "Bebidas"
+  },
+  {
+    "id": "w6QF1akLmOmOXbSzkWar",
+    "costPerUnit": 0,
+    "name": "Agua",
+    "type": "raw_material",
+    "imageUrl": "",
+    "category": "",
+    "unit": "gr",
+    "minStockLevel": 0,
+    "salesChannels": [
+      "pos"
+    ],
+    "bom": [],
+    "currentStock": 999999999470
+  },
+  {
+    "id": "xSVhaS3BDKYaE74nvtrn",
+    "name": "Muffin de Arándalos",
+    "type": "finished_good",
+    "bom": [
+      {
+        "inventoryItemId": "mantequilla",
+        "quantity": 8.52
+      },
+      {
+        "quantity": 13.34,
+        "inventoryItemId": "tiJfHqAK2ZUHVI43CdRS"
+      },
+      {
+        "inventoryItemId": "BTPWgEc3BZMUocStZRQn",
+        "quantity": 0.07
+      },
+      {
+        "inventoryItemId": "hfYmna1OS0ddFuRqK2iM",
+        "quantity": 0.37
+      },
+      {
+        "inventoryItemId": "9xzNG6ivbiENiE8h9y86",
+        "quantity": 7.41
+      },
+      {
+        "quantity": 8.89,
+        "inventoryItemId": "M62EOPptlXniVvK7WAoF"
+      },
+      {
+        "inventoryItemId": "fSnWb6KZSBWpI0IIhE4h",
+        "quantity": 18.53
+      },
+      {
+        "quantity": 0.67,
+        "inventoryItemId": "srbEmhYf69vViqFDCcBQ"
+      },
+      {
+        "inventoryItemId": "p6WA104EyTBbXPexjilZ",
+        "quantity": 0.22
+      },
+      {
+        "quantity": 230,
+        "inventoryItemId": "Qo55xfJsLpKq39LVybOX"
+      }
+    ],
+    "costPerUnit": 6000,
+    "minStockLevel": 3,
+    "salesChannels": [
+      "pos",
+      "web",
+      "rappi"
+    ],
+    "currentStock": 6,
+    "category": "Clásicos",
+    "unit": "unidades",
+    "imageUrl": ""
+  },
+  {
+    "id": "zEe63tU8FSbscLSnzq07",
+    "imageUrl": "",
+    "type": "raw_material",
+    "minStockLevel": 100,
+    "salesChannels": [
+      "pos"
+    ],
+    "costPerUnit": 0,
+    "name": "Cocoa Alcalina",
+    "category": "",
+    "bom": [],
+    "currentStock": 1000,
+    "unit": "gr"
+  }
+]
