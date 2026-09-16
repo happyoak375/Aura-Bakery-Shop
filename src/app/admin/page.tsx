@@ -1,20 +1,54 @@
-/**
- * @fileoverview Main Admin Dashboard Component (V1 & V2 Merged Hub)
- */
-
 'use client';
+
+/**
+ * @fileoverview Panel de Control Administrativo y Hub Central - Aura Bakery
+ * 
+ * Responsabilidades del módulo:
+ * 1. Control de Acceso: Valida la sesión activa de personal (`isStaffLoggedIn`) vía Zustand.
+ * 2. Hub de Acceso Rápido: Proporciona lanzadores directos hacia POS (/pos), Comanda (/kitchen),
+ *    Inventario (/admin/inventory), Proyección (/admin/forecast) y Métricas (/admin/analytics).
+ * 3. Gestión Operativa de Pedidos:
+ *    - Escucha en tiempo real (`onSnapshot`) sobre la colección 'orders' de Firestore[cite: 1].
+ *    - Filtrado dinámico multiselección por estado operativo[cite: 1].
+ *    - Modificación de estados de preparación y conciliación manual de pagos pendientes[cite: 1].
+ * 4. Gestión de Equipo y RBAC:
+ *    - Utiliza una instancia secundaria de Firebase Auth ('SecondaryApp') para registrar nuevos
+ *      empleados sin cerrar la sesión del administrador actual[cite: 1, 3].
+ *    - Asigna roles ('admin' | 'barista') guardándolos en la colección 'staff_roles'[cite: 1, 3].
+ */
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Users, ShoppingBag, PackageSearch, Store, ChefHat, LogOut, TrendingUp, BarChart3 } from 'lucide-react';
+import {
+  Users,
+  ShoppingBag,
+  PackageSearch,
+  Store,
+  ChefHat,
+  LogOut,
+  TrendingUp,
+  BarChart3
+} from 'lucide-react';
 import { Cormorant_Garamond } from 'next/font/google';
 
 import { db } from '../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  doc,
+  updateDoc,
+  setDoc
+} from 'firebase/firestore';
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondary } from 'firebase/auth';
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signOut as signOutSecondary
+} from 'firebase/auth';
 
 import { useAuthStore } from '../../lib/store';
 
@@ -23,28 +57,59 @@ const cormorant = Cormorant_Garamond({
   weight: ['600']
 });
 
+/**
+ * Estructura de cada producto incluido en la orden.
+ */
+interface AdminOrderItem {
+  name: string;
+  quantity: number;
+  price?: number;
+}
+
+/**
+ * Estructura del documento de orden en Firestore.
+ */
+interface AdminOrder {
+  id: string;
+  customerName?: string;
+  customerPhone?: string;
+  deliveryMethod?: 'delivery' | 'pickup';
+  deliveryDate?: string;
+  address?: string | null;
+  neighborhood?: string | null;
+  notes?: string;
+  totalAmount?: number;
+  paymentStatus?: 'PAGADO' | 'PENDIENTE' | string;
+  orderStatus?: 'NUEVO' | 'CONFIRMADO' | 'PREPARANDO' | 'ENTREGADO' | 'CANCELADO' | string;
+  items?: AdminOrderItem[];
+}
+
 export default function AdminDashboard() {
-  // --- AUTHENTICATION & ROUTING ---
   const router = useRouter();
   const { isStaffLoggedIn, logout } = useAuthStore();
-  const [isMounted, setIsMounted] = useState(false);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
-  // --- V1 STATE ---
+  // Control de pestañas: 'orders' (Historial) o 'team' (Alta de personal)[cite: 1]
   const [activeTab, setActiveTab] = useState<'orders' | 'team'>('orders');
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
+
+  // Estado del formulario de creación de empleados[cite: 1]
+  const [newEmail, setNewEmail] = useState<string>('');
+  const [newPassword, setNewPassword] = useState<string>('');
   const [newRole, setNewRole] = useState<'admin' | 'barista'>('barista');
-  const [isCreatingUser, setIsCreatingUser] = useState(false);
-  const [teamMessage, setTeamMessage] = useState({ type: '', text: '' });
+  const [isCreatingUser, setIsCreatingUser] = useState<boolean>(false);
+  const [teamMessage, setTeamMessage] = useState<{ type: string; text: string }>({ type: '', text: '' });
 
-  const [orders, setOrders] = useState<any[]>([]);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+  // Listado reactivo de pedidos[cite: 1]
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(true);
 
-  // --- FILTROS DE ESTADO ---
+  // Filtros operativos de pedidos[cite: 1]
   const allStatuses = ['NUEVO', 'CONFIRMADO', 'PREPARANDO', 'ENTREGADO', 'CANCELADO'];
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['NUEVO', 'CONFIRMADO', 'PREPARANDO']);
 
-  // 1. SECURITY CHECK
+  /**
+   * Guardia de seguridad: Verifica que el usuario tenga una sesión administrativa activa[cite: 1].
+   */
   useEffect(() => {
     setIsMounted(true);
     if (!isStaffLoggedIn) {
@@ -52,7 +117,9 @@ export default function AdminDashboard() {
     }
   }, [isStaffLoggedIn, router]);
 
-  // 2. V1 FIREBASE LISTENER
+  /**
+   * Sincronización en tiempo real con la colección 'orders' de Firestore[cite: 1].
+   */
   useEffect(() => {
     if (!isStaffLoggedIn) return;
 
@@ -61,7 +128,8 @@ export default function AdminDashboard() {
       const ordersData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })) as AdminOrder[];
+
       setOrders(ordersData);
       setIsLoadingOrders(false);
     });
@@ -71,12 +139,19 @@ export default function AdminDashboard() {
     };
   }, [isStaffLoggedIn]);
 
+  /**
+   * Cierra la sesión activa y redirige a la portada.
+   */
   const handleLogout = () => {
     logout();
     router.push('/');
   };
 
-  // --- CREACIÓN DE EQUIPO ---
+  /**
+   * ALTA DE EMPLEADOS CON INSTANCIA SECUNDARIA:
+   * Para evitar que Firebase Auth cierre la sesión del administrador actual al registrar
+   * a un nuevo usuario, se inicializa un cliente aislado ('SecondaryApp').
+   */
   const handleCreateTeamMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCreatingUser(true);
@@ -84,59 +159,75 @@ export default function AdminDashboard() {
 
     try {
       const mainApp = getApp();
-      const secondaryApp = getApps().find(app => app.name === 'SecondaryApp') || initializeApp(mainApp.options, 'SecondaryApp');
+      const secondaryApp = getApps().find(app => app.name === 'SecondaryApp') ||
+        initializeApp(mainApp.options, 'SecondaryApp');
       const secondaryAuth = getAuth(secondaryApp);
 
+      // 1. Crea las credenciales en Firebase Authentication[cite: 1, 3]
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newEmail, newPassword);
 
-      // Save role to Firestore using the generated UID
+      // 2. Persiste el rol en la colección 'staff_roles' usando el UID generado[cite: 3]
       await setDoc(doc(db, 'staff_roles', userCredential.user.uid), {
         email: newEmail,
         role: newRole,
         createdAt: new Date()
       });
 
+      // 3. Cierra la sesión de la instancia secundaria para no dejar rastro local[cite: 1, 3]
       await signOutSecondary(secondaryAuth);
+
       setTeamMessage({ type: 'success', text: `¡Cuenta de ${newRole} creada exitosamente!` });
       setNewEmail('');
       setNewPassword('');
-      setNewRole('barista'); // Reset to default
+      setNewRole('barista');
     } catch (error: any) {
-      console.error("Error creating user:", error);
-      setTeamMessage({ type: 'error', text: 'Hubo un error al crear la cuenta.' });
+      console.error("Error al crear empleado:", error);
+      setTeamMessage({
+        type: 'error',
+        text: 'Hubo un error al crear la cuenta. Verifica que el correo no esté registrado.'
+      });
     } finally {
       setIsCreatingUser(false);
     }
   };
 
-
+  /**
+   * Actualiza el estado de preparación de un pedido en Firestore[cite: 1].
+   */
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, { orderStatus: newStatus });
     } catch (error) {
-      console.error("Error updating order status:", error);
+      console.error("Error al actualizar estado del pedido:", error);
       alert("Hubo un error al actualizar el estado.");
     }
   };
 
+  /**
+   * Marca manualmente un pedido como pagado (conciliación manual para transferencias/WhatsApp)[cite: 1].
+   */
   const handleMarkAsPaid = async (orderId: string) => {
     if (!window.confirm('¿Confirmar que este pedido ya fue pagado?')) return;
     try {
       const orderRef = doc(db, 'orders', orderId);
       await updateDoc(orderRef, { paymentStatus: 'PAGADO' });
     } catch (error) {
-      console.error("Error updating payment status:", error);
+      console.error("Error al actualizar estado de pago:", error);
       alert("Hubo un error al actualizar el pago.");
     }
   };
 
+  /**
+   * Alterna la inclusión de un estado en el filtro de la lista[cite: 1].
+   */
   const toggleStatus = (status: string) => {
     setSelectedStatuses(prev =>
       prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
     );
   };
 
+  // Pedidos filtrados según los chips de estado seleccionados[cite: 1]
   const filteredOrders = orders.filter(order =>
     selectedStatuses.includes(order.orderStatus || 'NUEVO')
   );
@@ -146,21 +237,27 @@ export default function AdminDashboard() {
   return (
     <div className="max-w-6xl mx-auto px-6 py-10 font-sans">
 
-      {/* --- ENCABEZADO Y LOGOUT --- */}
+      {/* ENCABEZADO Y CIERRE DE SESIÓN */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <h1 className={`text-4xl text-zinc-900 ${cormorant.className}`}>panel de control operativo</h1>
+        <h1 className={`text-4xl text-zinc-900 ${cormorant.className}`}>
+          panel de control operativo
+        </h1>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 text-red-500 font-bold hover:bg-red-50 px-4 py-2 rounded-full transition"
+          className="flex items-center gap-2 text-red-500 font-bold hover:bg-red-50 px-4 py-2 rounded-full transition active:scale-95"
+          aria-label="Cerrar sesión de personal"
         >
           <LogOut size={18} /> cerrar sesión
         </button>
       </div>
 
-      {/* --- QUICK ACCESS HUB --- */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+      {/* HUB DE ACCESO RÁPIDO A MÓDULOS OPERATIVOS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-10">
 
-        <Link href="/pos" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+        <Link
+          href="/pos"
+          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group active:scale-95"
+        >
           <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
             <Store size={24} />
           </div>
@@ -170,7 +267,10 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
-        <Link href="/kitchen" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+        <Link
+          href="/kitchen"
+          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group active:scale-95"
+        >
           <div className="w-14 h-14 bg-orange-50 text-orange-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
             <ChefHat size={24} />
           </div>
@@ -180,7 +280,10 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
-        <Link href="/admin/inventory" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+        <Link
+          href="/admin/inventory"
+          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group active:scale-95"
+        >
           <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
             <PackageSearch size={24} />
           </div>
@@ -190,7 +293,10 @@ export default function AdminDashboard() {
           </div>
         </Link>
 
-        <Link href="/admin/forecast" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+        <Link
+          href="/admin/forecast"
+          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group active:scale-95"
+        >
           <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
             <TrendingUp size={24} />
           </div>
@@ -199,7 +305,11 @@ export default function AdminDashboard() {
             <p className="text-zinc-500 text-sm">cálculo insumos</p>
           </div>
         </Link>
-        <Link href="/admin/analytics" className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group">
+
+        <Link
+          href="/admin/analytics"
+          className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md hover:border-black transition-all flex items-center gap-4 group active:scale-95"
+        >
           <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
             <BarChart3 size={24} />
           </div>
@@ -208,26 +318,33 @@ export default function AdminDashboard() {
             <p className="text-zinc-500 text-sm">ventas y reportes</p>
           </div>
         </Link>
+
       </div>
 
-      {/* --- V1 TABS --- */}
+      {/* SELECTOR DE PESTAÑAS */}
       <div className="flex gap-4 mb-8 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('orders')}
-          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'orders' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
+          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'orders'
+              ? 'border-black text-black'
+              : 'border-transparent text-zinc-400 hover:text-zinc-600'
+            }`}
         >
           <ShoppingBag size={18} /> historial de pedidos
         </button>
 
         <button
           onClick={() => setActiveTab('team')}
-          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'team' ? 'border-black text-black' : 'border-transparent text-zinc-400 hover:text-zinc-600'}`}
+          className={`flex items-center gap-2 pb-4 px-2 border-b-2 transition-all font-medium ${activeTab === 'team'
+              ? 'border-black text-black'
+              : 'border-transparent text-zinc-400 hover:text-zinc-600'
+            }`}
         >
           <Users size={18} /> equipo
         </button>
       </div>
 
-      {/* --- V1 TAB CONTENT --- */}
+      {/* CONTENIDO DE PESTAÑAS */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 min-h-[400px]">
         {activeTab === 'orders' ? (
           <div>
@@ -235,18 +352,23 @@ export default function AdminDashboard() {
               <ShoppingBag size={20} /> listado
             </h2>
 
+            {/* CHIPS DE FILTRO DE ESTADO */}
             <div className="flex flex-wrap gap-2 mb-6">
               {allStatuses.map(status => (
                 <button
                   key={status}
                   onClick={() => toggleStatus(status)}
-                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${selectedStatuses.includes(status) ? 'bg-black text-white border-black shadow-sm' : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300'}`}
+                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all ${selectedStatuses.includes(status)
+                      ? 'bg-black text-white border-black shadow-sm'
+                      : 'bg-white text-zinc-400 border-gray-200 hover:border-zinc-300'
+                    }`}
                 >
                   {status}
                 </button>
               ))}
             </div>
 
+            {/* LISTADO DINÁMICO DE PEDIDOS */}
             {isLoadingOrders ? (
               <div className="text-zinc-400 animate-pulse mt-8">cargando pedidos...</div>
             ) : filteredOrders.length === 0 ? (
@@ -259,7 +381,7 @@ export default function AdminDashboard() {
                   <div key={order.id} className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <p className="font-bold text-zinc-900">{order.customerName}</p>
+                        <p className="font-bold text-zinc-900">{order.customerName || 'Cliente'}</p>
                         <p className="text-xs text-zinc-500">ID: {order.id.substring(0, 8)}...</p>
                       </div>
 
@@ -268,14 +390,31 @@ export default function AdminDashboard() {
 
                         <div className="flex flex-col items-end gap-1.5">
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${order.paymentStatus === 'PAGADO' ? 'bg-green-100 text-green-700' : order.paymentStatus === 'PENDIENTE' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-700'}`}>
+                            <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${order.paymentStatus === 'PAGADO'
+                                ? 'bg-green-100 text-green-700'
+                                : order.paymentStatus === 'PENDIENTE'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}>
                               {order.paymentStatus}
                             </span>
 
+                            {/* SELECTOR DE TRANSICIÓN DE ESTADO */}
                             <select
                               value={order.orderStatus || 'NUEVO'}
                               onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
-                              className={`text-[10px] font-bold uppercase tracking-wider rounded-md px-2 py-1 outline-none cursor-pointer border ${(order.orderStatus || 'NUEVO') === 'NUEVO' ? 'bg-blue-50 text-blue-700 border-blue-100' : order.orderStatus === 'CONFIRMADO' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : order.orderStatus === 'PREPARANDO' ? 'bg-orange-50 text-orange-700 border-orange-100' : order.orderStatus === 'ENTREGADO' ? 'bg-green-50 text-green-700 border-green-100' : order.orderStatus === 'CANCELADO' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-gray-100 text-gray-700 border-gray-200'}`}
+                              className={`text-[10px] font-bold uppercase tracking-wider rounded-md px-2 py-1 outline-none cursor-pointer border ${(order.orderStatus || 'NUEVO') === 'NUEVO'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                  : order.orderStatus === 'CONFIRMADO'
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                                    : order.orderStatus === 'PREPARANDO'
+                                      ? 'bg-orange-50 text-orange-700 border-orange-100'
+                                      : order.orderStatus === 'ENTREGADO'
+                                        ? 'bg-green-50 text-green-700 border-green-100'
+                                        : order.orderStatus === 'CANCELADO'
+                                          ? 'bg-red-50 text-red-700 border-red-100'
+                                          : 'bg-gray-100 text-gray-700 border-gray-200'
+                                }`}
                             >
                               <option value="NUEVO">NUEVO</option>
                               <option value="CONFIRMADO">CONFIRMADO</option>
@@ -297,10 +436,11 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
+                    {/* DETALLES DE CONTACTO Y ENTREGA */}
                     <div className="text-sm text-zinc-600 bg-gray-50 p-3 rounded-xl mb-3 space-y-1">
-                      <p><span className="font-semibold text-zinc-900">tel:</span> {order.customerPhone}</p>
+                      <p><span className="font-semibold text-zinc-900">tel:</span> {order.customerPhone || 'N/A'}</p>
                       <p><span className="font-semibold text-zinc-900">método:</span> {order.deliveryMethod === 'delivery' ? 'domicilio' : 'recoger'}</p>
-                      <p><span className="font-semibold text-zinc-900">fecha entrega:</span> {order.deliveryDate}</p>
+                      <p><span className="font-semibold text-zinc-900">fecha entrega:</span> {order.deliveryDate || 'Sin programar'}</p>
                       {order.deliveryMethod === 'delivery' && (
                         <p><span className="font-semibold text-zinc-900">dirección:</span> {order.address}, {order.neighborhood}</p>
                       )}
@@ -309,10 +449,11 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
+                    {/* ÍTEMS INCLUIDOS EN LA ORDEN */}
                     <div className="border-t border-gray-100 pt-3">
                       <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">productos</p>
                       <ul className="text-sm text-zinc-700 space-y-1">
-                        {order.items?.map((item: any, index: number) => (
+                        {order.items?.map((item, index) => (
                           <li key={index}>• {item.quantity}x {item.name}</li>
                         ))}
                       </ul>
@@ -323,6 +464,7 @@ export default function AdminDashboard() {
             )}
           </div>
         ) : (
+          /* FORMULARIO DE ALTA DE EMPLEADOS */
           <div className="max-w-md">
             <h2 className="text-xl font-bold text-zinc-900 mb-6 flex items-center gap-2">
               <Users size={20} /> agregar nuevo empleado
@@ -330,13 +472,18 @@ export default function AdminDashboard() {
 
             <form onSubmit={handleCreateTeamMember} className="space-y-4">
               {teamMessage.text && (
-                <div className={`text-sm p-3 rounded-xl border text-center ${teamMessage.type === 'success' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-500 border-red-100'}`}>
+                <div className={`text-sm p-3 rounded-xl border text-center ${teamMessage.type === 'success'
+                    ? 'bg-green-50 text-green-600 border-green-100'
+                    : 'bg-red-50 text-red-500 border-red-100'
+                  }`}>
                   {teamMessage.text}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">correo electrónico</label>
+                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                  correo electrónico
+                </label>
                 <input
                   type="email"
                   required
@@ -348,7 +495,9 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">contraseña temporal</label>
+                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                  contraseña temporal
+                </label>
                 <input
                   type="password"
                   required
@@ -361,11 +510,13 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">rol del empleado</label>
+                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1.5 ml-1">
+                  rol del empleado
+                </label>
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value as 'admin' | 'barista')}
-                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all"
+                  className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 outline-none focus:border-black focus:ring-1 focus:ring-black transition-all cursor-pointer"
                 >
                   <option value="barista">barista (caja y cocina)</option>
                   <option value="admin">administrador (acceso total)</option>

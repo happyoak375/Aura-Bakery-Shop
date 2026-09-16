@@ -1,18 +1,26 @@
 /**
- * @fileoverview Firebase Client SDK Initialization
- * This file configures and exports the core Firebase services used throughout the frontend application.
- * It strictly uses environment variables to prevent exposing raw credentials in the source code.
+ * @fileoverview Inicialización del SDK Cliente de Firebase - Aura Bakery
+ * 
+ * Responsabilidades:
+ * 1. Centralización de Servicios:
+ *    - Configura e inicializa la instancia singleton de Firebase para la aplicación web.
+ *    - Exporta los servicios nucleares: Firestore (`db`), Auth (`auth`), Storage (`storage`) y Analytics (`analytics`)[cite: 1].
+ * 2. Patrón Singleton para Next.js:
+ *    - Evalúa `getApps().length` para evitar reinicializaciones redundantes durante recargas en caliente (Fast Refresh)[cite: 1, 2].
+ * 3. Aislamiento Seguro en SSR:
+ *    - Condiciona la carga de Firebase Analytics al entorno del navegador (`typeof window !== "undefined"`)
+ *      y a la verificación asíncrona de `isSupported()`[cite: 1].
  */
 
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAnalytics, isSupported } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
-import { getStorage } from "firebase/storage"; // <-- NEW: Imported Storage
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getAnalytics, isSupported, Analytics } from "firebase/analytics";
+import { getAuth, Auth } from "firebase/auth";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 
 /**
- * Firebase project configuration object.
- * Pulled securely from .env.local during the build process.
+ * Parámetros de configuración del proyecto Firebase.
+ * Consumidos de forma segura desde las variables de entorno públicas (.env.local)[cite: 1, 2].
  */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -25,32 +33,36 @@ const firebaseConfig = {
 };
 
 /**
- * Initialize Firebase App (Singleton Pattern)
- * Next.js hot-reloads the development server frequently. Checking getApps().length
- * ensures we don't accidentally initialize multiple identical instances of Firebase,
- * which would cause a memory leak and crash the app.
+ * Inicialización Singleton de la App de Firebase:
+ * Si ya existe una instancia activa la reutiliza (`getApp()`), de lo contrario la inicializa (`initializeApp()`)[cite: 1, 2].
  */
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-
-// Initialize Core Services
-const db = getFirestore(app);
-const auth = getAuth(app);
-const storage = getStorage(app); // <-- NEW: Initialized Storage
+const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 /**
- * Initialize Firebase Analytics safely.
- * Analytics requires the browser's `window` object to track page views.
- * The `typeof window !== "undefined"` check prevents Next.js from throwing
- * errors during Server-Side Rendering (SSR).
+ * Instancia central de base de datos Firestore[cite: 1].
  */
-let analytics;
+const db: Firestore = getFirestore(app);
+
+/**
+ * Servicio de Autenticación de usuarios y empleados[cite: 1].
+ */
+const auth: Auth = getAuth(app);
+
+/**
+ * Servicio de almacenamiento en la nube para multimedia y recursos estáticos[cite: 1].
+ */
+const storage: FirebaseStorage = getStorage(app);
+
+/**
+ * Inicialización condicional de Firebase Analytics para evitar fallas durante SSR[cite: 1].
+ */
+let analytics: Analytics | undefined;
 if (typeof window !== "undefined") {
-  isSupported().then((isSupported) => {
-    if (isSupported) {
+  isSupported().then((supported) => {
+    if (supported) {
       analytics = getAnalytics(app);
     }
   });
 }
 
-// <-- NEW: Exported storage so other files can use it
 export { app, db, analytics, auth, storage };

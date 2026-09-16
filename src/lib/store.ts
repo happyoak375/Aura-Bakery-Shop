@@ -1,7 +1,18 @@
 /**
- * @fileoverview Global State Management (Zustand)
- * Manages the shopping cart, direct purchase flows (Buy Now), and dynamic
- * calculations for pricing and delivery availability.
+ * @fileoverview Gestión de Estado Global (Zustand) - Aura Bakery
+ * 
+ * Responsabilidades:
+ * 1. Tienda y Carrito de Compras (`useCartStore`):
+ *    - Gestión de productos agregados, cantidades y eliminación por `cartItemId` único.
+ *    - Túnel de compra express (`directPurchaseItem`): Aísla el ítem seleccionado para permitir
+ *      comprar sin sobrescribir el carrito activo[cite: 1, 2].
+ *    - Cálculo reactivo de totales financieros considerando modificadores y variantes[cite: 2, 4].
+ *    - Determinación del tiempo de espera crítico (*lead time bottleneck*) para toda la orden[cite: 2, 3].
+ *    - Emisión automática de eventos analíticos (`AddToCart`) para Meta Pixel[cite: 2, 4].
+ * 2. Autenticación y Turnos de Personal (`useAuthStore`):
+ *    - Mantiene la sesión del staff (correo y rol 'admin' | 'barista') sincronizada con Firebase Auth[cite: 1].
+ *    - Utiliza middleware `persist` para salvaguardar la sesión en almacenamiento local (`localStorage`),
+ *      evitando que los cajeros o cocineros sean expulsados ante recargas de pantalla[cite: 1, 2].
  */
 
 import { create } from "zustand";
@@ -16,35 +27,31 @@ import * as fbq from './fpixel';
 import { auth } from './firebase';
 import { signOut } from "firebase/auth";
 
-// ==========================================
-// 1. TYPES & INTERFACES
-// ==========================================
+// =========================================================================
+// 1. TIPOS E INTERFACES DEL CARRITO
+// =========================================================================
 
 /**
- * Represents an item as it exists inside the shopping cart.
- * Extends the base Product model with specific user selections and calculated totals.
+ * Representa un producto individual dentro de la bolsa de compras.
+ * Extiende las propiedades base del producto incorporando selecciones activas.
  */
 export interface CartItem extends Product {
-  cartItemId: string;
+  cartItemId: string; // Hash único generado por combinación de id, variante y preferencias
   selectedVariant: ProductVariant | null;
   selectedPreferences: ProductPreference[];
-  /** The final price for one unit of this specific combination */
-  calculatedPrice: number;
+  calculatedPrice: number; // Precio unitario final considerando deltas de precio
   quantity: number;
 }
 
 /**
- * The Zustand Store interface defining all state variables and actions.
+ * Interfaz del almacén Zustand para la operativa del carrito.
  */
 interface CartStore {
-  // --- State ---
+  // Estado
   items: CartItem[];
-  /** * Stores a single item temporarily when the user clicks "Buy Now" (Compra Directa).
-   * This bypasses the main cart so their existing cart items aren't overwritten.
-   */
-  directPurchaseItem: CartItem | null;
+  directPurchaseItem: CartItem | null; // Espacio temporal para flujo express "Comprar Ahora"
 
-  // --- Actions ---
+  // Mutaciones y Acciones
   setDirectPurchaseItem: (item: CartItem | null) => void;
   addItem: (
     product: Product,
@@ -55,20 +62,19 @@ interface CartStore {
   updateQuantity: (cartItemId: string, quantity: number) => void;
   clearCart: () => void;
 
-  // --- Selectors ---
+  // Selectores de datos
   getTotal: (isDirectPurchase?: boolean) => number;
   getTotalItems: (isDirectPurchase?: boolean) => number;
-  getMostRestrictiveAvailability: (
-    isDirectPurchase?: boolean,
-  ) => AvailabilityType;
+  getMostRestrictiveAvailability: (isDirectPurchase?: boolean) => AvailabilityType;
 }
 
-// ==========================================
-// 2. HELPER FUNCTIONS
-// ==========================================
+// =========================================================================
+// 2. FUNCIONES DE APOYO (HELPERS MATEMÁTICOS Y DE HASHING)
+// =========================================================================
 
 /**
- * Generates a unique identifier for a specific product + variant + preference combination.
+ * Genera un identificador único determinista para una combinación específica de producto,
+ * variante y preferencias seleccionadas.
  */
 const generateCartItemId = (
   productId: string,
@@ -77,8 +83,8 @@ const generateCartItemId = (
 ): string => {
   const variantPart = variant ? variant.id : "novar";
 
-  // We sort the preferences before joining to guarantee that selecting
-  // [Arequipe, Fresa] generates the exact same hash as [Fresa, Arequipe].
+  // Ordena alfabéticamente las preferencias antes de unirlas.
+  // Esto asegura que seleccionar [Arequipe, Fresa] genere el mismo ID que [Fresa, Arequipe].
   const prefPart =
     prefs.length > 0
       ? prefs
@@ -91,7 +97,8 @@ const generateCartItemId = (
 };
 
 /**
- * Calculates the exact price of a product by adding the base price to any variant/preference deltas.
+ * Calcula el valor unitario final sumando el precio base más los incrementos
+ * (deltas) de la variante y de cada preferencia opcional.
  */
 const calculateLinePrice = (
   product: Product,
@@ -104,15 +111,15 @@ const calculateLinePrice = (
 };
 
 /**
- * Determines the longest lead time required for an entire order.
- * If a cart has an "asap" cookie and a "48h" entremet, the whole order becomes "48h".
+ * Evalúa el cuello de botella operativo de la orden:
+ * El ítem que requiera mayor tiempo de anticipación define la disponibilidad global.
  */
 const calculateMostRestrictiveAvailability = (
   items: CartItem[],
 ): AvailabilityType => {
   if (items.length === 0) return "asap";
 
-  // Assign numeric weights to easily compare restrictiveness
+  // Escala de ponderación de mayor a menor restricción
   const weights: Record<AvailabilityType, number> = {
     asap: 0,
     "24h": 1,
@@ -134,50 +141,50 @@ const calculateMostRestrictiveAvailability = (
   return highestWeightItem.availabilityType;
 };
 
-// ==========================================
-// 3. CART STORE IMPLEMENTATION
-// ==========================================
+// =========================================================================
+// 3. STORE DEL CARRITO (USECARTSTORE)
+// =========================================================================
 
 export const useCartStore = create<CartStore>((set, get) => ({
-  // --- Initial State ---
+  // Estado inicial
   items: [],
   directPurchaseItem: null,
 
-  // --- State Mutators ---
+  // Mutador para el túnel de compra directa (Express Checkout)
   setDirectPurchaseItem: (item) => set({ directPurchaseItem: item }),
 
   addItem: (product, selectedVariant, selectedPreferences) => {
     const { items } = get();
 
-    // 1. Generate unique ID for this specific combination
+    // 1. Generación de clave compuesta
     const cartItemId = generateCartItemId(
       product.id,
       selectedVariant,
       selectedPreferences,
     );
 
-    // 2. Calculate the correct unit price
+    // 2. Cálculo matemático de precio de línea
     const calculatedPrice = calculateLinePrice(
       product,
       selectedVariant,
       selectedPreferences,
     );
 
-    // EVENTO PIXEL: AddToCart
+    // 3. Registro del evento AddToCart en Meta Pixel
     fbq.event('AddToCart', {
       content_name: product.name,
       content_ids: [product.id],
       content_type: 'product',
       value: calculatedPrice,
       currency: 'COP',
-      quantity: 1
+      quantity: 1,
     });
 
-    // 3. Check if this exact combination is already in the cart
+    // 4. Verificación de existencia previa en el carrito
     const existingItem = items.find((item) => item.cartItemId === cartItemId);
 
     if (existingItem) {
-      // If it exists, just bump the quantity to prevent duplicate rows in the UI
+      // Si la combinación exacta ya existe, incrementa la cantidad sin duplicar filas
       set({
         items: items.map((item) =>
           item.cartItemId === cartItemId
@@ -186,9 +193,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
         ),
       });
     } else {
-      // Otherwise, create a brand new line item
+      // De lo contrario, inserta una nueva línea en la orden
       const newItem: CartItem = {
-        ...product, 
+        ...product,
         cartItemId,
         selectedVariant,
         selectedPreferences,
@@ -206,7 +213,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 
   updateQuantity: (cartItemId, quantity) => {
-    // Failsafe: If a user clicks minus down to 0, completely remove the item.
+    // Salvaguarda: Si la cantidad llega a cero o menos, descarta el ítem automáticamente
     if (quantity <= 0) {
       get().removeItem(cartItemId);
       return;
@@ -220,15 +227,17 @@ export const useCartStore = create<CartStore>((set, get) => ({
 
   clearCart: () => set({ items: [] }),
 
-  // --- Selectors (Data Retrieval) ---
+  // =========================================================================
+  // SELECTORES DE CONSULTA
+  // =========================================================================
 
   getTotal: (isDirectPurchase = false) => {
-    // If user is in the "Buy Now" flow, calculate the total based ONLY on that one item.
+    // Si proviene de compra directa, evalúa exclusivamente el ítem aislado
     if (isDirectPurchase && get().directPurchaseItem) {
       const item = get().directPurchaseItem!;
       return item.calculatedPrice * item.quantity;
     }
-    // Standard cart flow: Sum up (price * quantity) for every item.
+    // Flujo estándar: Sumatoria de (precioCalculado * cantidad) de cada línea
     return get().items.reduce(
       (total, item) => total + item.calculatedPrice * item.quantity,
       0,
@@ -250,9 +259,9 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
 }));
 
-// ==========================================
-// 4. STAFF AUTHENTICATION STORE (NUEVO)
-// ==========================================
+// =========================================================================
+// 4. STORE DE AUTENTICACIÓN Y ROLES (USEAUTHSTORE)
+// =========================================================================
 
 export type StaffRole = 'admin' | 'barista' | null;
 
@@ -264,23 +273,36 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  isStaffLoggedIn: false,
-  employeeEmail: null,
-  role: null,
-  
-  setStaffUser: (email, role = null) => set({ 
-    isStaffLoggedIn: !!email, 
-    employeeEmail: email,
-    role: role
-  }),
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      isStaffLoggedIn: false,
+      employeeEmail: null,
+      role: null,
 
-  logout: async () => {
-    try {
-      await signOut(auth);
-      set({ isStaffLoggedIn: false, employeeEmail: null, role: null });
-    } catch (error) {
-      console.error("Error logging out:", error);
+      /**
+       * Actualiza el usuario autenticado y su rol RBAC asignado.
+       */
+      setStaffUser: (email, role = null) => set({
+        isStaffLoggedIn: !!email,
+        employeeEmail: email,
+        role: role,
+      }),
+
+      /**
+       * Cierra la sesión activa en Firebase Auth y limpia el almacenamiento persistente.
+       */
+      logout: async () => {
+        try {
+          await signOut(auth);
+          set({ isStaffLoggedIn: false, employeeEmail: null, role: null });
+        } catch (error) {
+          console.error("Error al cerrar sesión de empleado:", error);
+        }
+      },
+    }),
+    {
+      name: "aura-staff-auth", // Llave de persistencia en localStorage para turnos activos
     }
-  },
-}));
+  )
+);

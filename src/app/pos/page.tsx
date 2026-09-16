@@ -18,9 +18,10 @@ export default function PointOfSale() {
     const { isStaffLoggedIn, employeeEmail } = useAuthStore();
     const [isMounted, setIsMounted] = useState(false);
 
-    // Data State
+    // Data & Filter State
     const [products, setProducts] = useState<InventoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [activeCategory, setActiveCategory] = useState('Todos');
 
     // Cart State
     const [cart, setCart] = useState<PosCartItem[]>([]);
@@ -28,13 +29,13 @@ export default function PointOfSale() {
     const [paymentMethod, setPaymentMethod] = useState<'efectivo' | 'tarjeta'>('tarjeta');
     const [successMessage, setSuccessMessage] = useState(false);
 
-    // --- Advanced Checkout & Discount State ---
+    // Advanced Checkout & Discount State
     const [discount, setDiscount] = useState<{ type: 'fixed' | 'percentage', value: number, reason: string } | null>(null);
     const [includeTip, setIncludeTip] = useState(false);
     const [showDiscountModal, setShowDiscountModal] = useState(false);
-    const [receiptData, setReceiptData] = useState<any>(null); // MOVED INSIDE THE COMPONENT!
+    const [receiptData, setReceiptData] = useState<any>(null);
 
-    // --- Modal Temporary State ---
+    // Modal Temporary State
     const [tempDiscountType, setTempDiscountType] = useState<'fixed' | 'percentage'>('percentage');
     const [tempDiscountValue, setTempDiscountValue] = useState('');
     const [tempDiscountReason, setTempDiscountReason] = useState('');
@@ -79,6 +80,13 @@ export default function PointOfSale() {
 
     if (!isMounted || !isStaffLoggedIn) return null;
 
+    // --- Dynamic Categories & Filtering ---
+    const categories = ['Todos', ...Array.from(new Set(products.map((p) => p.category || 'Otros')))];
+    
+    const filteredProducts = activeCategory === 'Todos'
+        ? products
+        : products.filter((p) => (p.category || 'Otros') === activeCategory);
+
     // --- Cart Logic ---
     const addToCart = (product: InventoryItem) => {
         setCart(prev => {
@@ -108,19 +116,7 @@ export default function PointOfSale() {
         setCart(prev => prev.filter(item => item.product.id !== productId));
     };
 
-    // --- Checkout Calculations ---
-    const subTotal = cart.reduce((sum, item) => sum + (item.product.costPerUnit * item.quantity), 0);
-
-    const discountAmount = discount
-        ? (discount.type === 'percentage' ? subTotal * (discount.value / 100) : discount.value)
-        : 0;
-
-    const subTotalAfterDiscount = Math.max(0, subTotal - discountAmount);
-
-    // 10% Suggested Service Tip
-    const tipAmount = includeTip ? subTotalAfterDiscount * 0.10 : 0;
-
-    const finalTotal = subTotalAfterDiscount + tipAmount;
+    const total = cart.reduce((sum, item) => sum + (item.product.costPerUnit * item.quantity), 0);
 
     // --- Checkout Logic ---
     const handleCheckout = async () => {
@@ -142,35 +138,18 @@ export default function PointOfSale() {
                 paymentMethod: paymentMethod,
                 customerName: 'Cliente Tienda',
                 deliveryMethod: 'pickup',
-                totalAmount: finalTotal, // From advanced checkout
+                totalAmount: total,
                 items: orderItems,
                 createdAt: serverTimestamp(),
-                processedBy: employeeEmail || 'Desconocido',
             };
 
-            const docRef = await addDoc(collection(db, 'orders'), orderData);
-
-            // Inject the generated ID for the receipt
-            const completeOrderData = { ...orderData, orderNumber: docRef.id.substring(0, 6).toUpperCase() };
-
-            // 1. Set the data for the CSS Print Template
-            setReceiptData(completeOrderData);
-
-            // 2. Trigger the browser print dialog after giving React 100ms to render the hidden div
-            setTimeout(() => {
-                window.print();
-            }, 100);
-
-            // Success animation & Reset
+            await addDoc(collection(db, 'orders'), orderData);
+            
             setSuccessMessage(true);
             setCart([]);
-            setDiscount(null);
-            setIncludeTip(false);
-
             setTimeout(() => {
                 setSuccessMessage(false);
                 setIsProcessing(false);
-                setReceiptData(null); // Clear receipt after printing
             }, 2000);
 
         } catch (error) {
@@ -182,7 +161,7 @@ export default function PointOfSale() {
 
     return (
         <div className="min-h-screen bg-gray-100 flex font-sans">
-
+            
             {/* --- LEFT SIDE: MENU GRID --- */}
             <div className="flex-1 flex flex-col h-screen overflow-hidden">
                 <header className="bg-white p-4 shadow-sm border-b border-gray-200 flex justify-between items-center shrink-0">
@@ -193,29 +172,52 @@ export default function PointOfSale() {
                         <h1 className="text-xl font-extrabold text-zinc-900">Aura Caja</h1>
                     </div>
                     <div className="text-sm font-bold text-zinc-500 bg-gray-100 px-4 py-2 rounded-full">
-                        Turno Activo: {employeeEmail || 'Staff'}
+                        Turno Activo
                     </div>
                 </header>
+
+                {/* CATEGORY FILTER BAR */}
+                <div className="bg-white px-6 pb-3 pt-3 border-b border-gray-200 shrink-0">
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                        {categories.map((cat, idx) => (
+                            <button
+                                key={`${cat}-${idx}`}
+                                onClick={() => setActiveCategory(cat)}
+                                className={`px-5 py-2 rounded-full font-bold text-sm whitespace-nowrap transition active:scale-95 ${
+                                    activeCategory === cat 
+                                        ? 'bg-black text-white shadow-md' 
+                                        : 'bg-gray-100 text-zinc-600 hover:bg-gray-200 border border-transparent'
+                                }`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
                 <div className="flex-1 overflow-y-auto p-6">
                     {isLoading ? (
                         <div className="flex justify-center items-center h-full text-gray-400 font-bold animate-pulse">
                             Cargando menú...
                         </div>
+                    ) : filteredProducts.length === 0 ? (
+                        <div className="flex justify-center items-center h-full text-zinc-400">
+                            No hay productos en esta categoría.
+                        </div>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {products.map(product => (
-                                <button
+                            {filteredProducts.map(product => (
+                                <button 
                                     key={product.id}
                                     onClick={() => addToCart(product)}
                                     className="bg-white p-3 rounded-2xl shadow-sm border border-gray-200 hover:border-black hover:shadow-md transition active:scale-95 flex flex-col items-center text-center h-48"
                                 >
                                     <div className="w-20 h-20 bg-gray-100 rounded-full overflow-hidden mb-3 shrink-0">
-                                        <img
-                                            src={product.imageUrl || getLocalProductImage(product.name)}
-                                            alt={product.name}
+                                        <img 
+                                            src={product.imageUrl || getLocalProductImage(product.name)} 
+                                            alt={product.name} 
                                             className="w-full h-full object-cover"
-                                            onError={(e) => { (e.target as HTMLImageElement).src = '/images/logo-aura.png' }}
+                                            onError={(e) => { (e.target as HTMLImageElement).src = '/images/placeholder.png' }}
                                         />
                                     </div>
                                     <h3 className="font-bold text-zinc-900 text-sm leading-tight mb-1 line-clamp-2">{product.name}</h3>
@@ -236,7 +238,6 @@ export default function PointOfSale() {
                     <span className="bg-black text-white text-xs font-bold px-2 py-1 rounded-full">{cart.length} items</span>
                 </div>
 
-                {/* Cart Items */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {cart.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-2">
@@ -250,7 +251,7 @@ export default function PointOfSale() {
                                     <span className="font-bold text-sm text-zinc-900 leading-tight pr-2">{item.product.name}</span>
                                     <span className="font-bold text-sm text-zinc-900 shrink-0">${(item.product.costPerUnit * item.quantity).toLocaleString('es-CO')}</span>
                                 </div>
-
+                                
                                 <div className="flex justify-between items-center mt-1">
                                     <div className="flex items-center bg-gray-100 rounded-lg p-1">
                                         <button onClick={() => updateQuantity(item.product.id!, -1)} className="p-1 hover:bg-white rounded shadow-sm text-zinc-600 transition"><Minus size={14} /></button>
@@ -266,60 +267,20 @@ export default function PointOfSale() {
                     )}
                 </div>
 
-                {/* Checkout Footer (UPGRADED UI WITH DISCOUNTS) */}
                 <div className="p-6 bg-gray-50 border-t border-gray-200 shrink-0">
-
-                    {/* Discount & Tip Controls */}
-                    <div className="space-y-3 mb-4 border-b border-gray-200 pb-4">
-                        <div className="flex justify-between items-center text-sm">
-                            <span className="text-zinc-500">Subtotal</span>
-                            <span className="font-bold text-zinc-900">${subTotal.toLocaleString('es-CO')}</span>
-                        </div>
-
-                        <div className="flex justify-between items-center text-sm">
-                            <button
-                                onClick={() => setShowDiscountModal(true)}
-                                className="text-blue-600 font-bold hover:underline"
-                            >
-                                {discount ? `Descuento (${discount.reason})` : '+ Agregar Descuento'}
-                            </button>
-                            {discount && (
-                                <div className="flex items-center gap-2">
-                                    <span className="font-bold text-red-500">-${discountAmount.toLocaleString('es-CO')}</span>
-                                    <button onClick={() => setDiscount(null)} className="text-zinc-400 hover:text-red-500">×</button>
-                                </div>
-                            )}
-                        </div>
-
-                        <label className="flex justify-between items-center text-sm cursor-pointer group">
-                            <span className="text-zinc-500 group-hover:text-zinc-900 transition">Propina Sugerida (10%)</span>
-                            <div className="flex items-center gap-3">
-                                <span className="font-bold text-zinc-900">${(subTotalAfterDiscount * 0.10).toLocaleString('es-CO')}</span>
-                                <input
-                                    type="checkbox"
-                                    checked={includeTip}
-                                    onChange={(e) => setIncludeTip(e.target.checked)}
-                                    className="w-5 h-5 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
-                                />
-                            </div>
-                        </label>
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-gray-500 font-bold">Total a cobrar</span>
+                        <span className="text-3xl font-extrabold text-zinc-900">${total.toLocaleString('es-CO')}</span>
                     </div>
 
-                    {/* Final Total */}
-                    <div className="flex justify-between items-center mb-6">
-                        <span className="text-gray-500 font-bold text-lg">Total a cobrar</span>
-                        <span className="text-4xl font-black text-zinc-900">${finalTotal.toLocaleString('es-CO')}</span>
-                    </div>
-
-                    {/* Payment Methods */}
                     <div className="grid grid-cols-2 gap-2 mb-4">
-                        <button
+                        <button 
                             onClick={() => setPaymentMethod('tarjeta')}
                             className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition ${paymentMethod === 'tarjeta' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-500'}`}
                         >
                             <CreditCard size={18} /> Tarjeta
                         </button>
-                        <button
+                        <button 
                             onClick={() => setPaymentMethod('efectivo')}
                             className={`py-3 rounded-xl font-bold flex items-center justify-center gap-2 border-2 transition ${paymentMethod === 'efectivo' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 bg-white text-gray-500'}`}
                         >
@@ -327,15 +288,16 @@ export default function PointOfSale() {
                         </button>
                     </div>
 
-                    <button
+                    <button 
                         disabled={cart.length === 0 || isProcessing}
                         onClick={handleCheckout}
-                        className={`w-full py-5 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2 transition active:scale-95 shadow-xl ${successMessage
-                            ? 'bg-green-500 text-white'
-                            : cart.length === 0
-                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                                : 'bg-black text-white hover:bg-zinc-800'
-                            }`}
+                        className={`w-full py-5 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2 transition active:scale-95 shadow-xl ${
+                            successMessage 
+                                ? 'bg-green-500 text-white' 
+                                : cart.length === 0 
+                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' 
+                                    : 'bg-black text-white hover:bg-zinc-800'
+                        }`}
                     >
                         {successMessage ? (
                             <><CheckCircle2 size={24} /> ¡Pago Exitoso!</>
@@ -348,115 +310,6 @@ export default function PointOfSale() {
                 </div>
             </div>
 
-            {/* --- DISCOUNT MODAL OVERLAY --- */}
-            {showDiscountModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-200">
-                        <h3 className="text-xl font-extrabold text-zinc-900 mb-1">Aplicar Descuento</h3>
-                        <p className="text-sm text-gray-500 mb-6">Autoriza una cortesía o descuento manual.</p>
-
-                        <div className="space-y-4">
-                            <div className="flex bg-gray-100 p-1 rounded-xl">
-                                <button
-                                    onClick={() => setTempDiscountType('percentage')}
-                                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${tempDiscountType === 'percentage' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}
-                                >
-                                    Porcentaje (%)
-                                </button>
-                                <button
-                                    onClick={() => setTempDiscountType('fixed')}
-                                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${tempDiscountType === 'fixed' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}
-                                >
-                                    Fijo ($)
-                                </button>
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Valor</label>
-                                <input
-                                    type="number"
-                                    value={tempDiscountValue}
-                                    onChange={(e) => setTempDiscountValue(e.target.value)}
-                                    placeholder={tempDiscountType === 'percentage' ? 'Ej. 10' : 'Ej. 5000'}
-                                    className="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black font-medium"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Motivo (Obligatorio)</label>
-                                <input
-                                    type="text"
-                                    value={tempDiscountReason}
-                                    onChange={(e) => setTempDiscountReason(e.target.value)}
-                                    placeholder="Ej. Cortesía staff, Cliente frecuente..."
-                                    className="w-full p-3 rounded-xl border border-gray-200 focus:outline-none focus:border-black font-medium"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-8">
-                            <button
-                                onClick={() => setShowDiscountModal(false)}
-                                className="flex-1 py-3 rounded-xl font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 transition"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleApplyDiscount}
-                                className="flex-1 py-3 rounded-xl font-bold text-white bg-black hover:bg-zinc-800 transition"
-                            >
-                                Aplicar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- HIDDEN 58mm THERMAL RECEIPT --- */}
-            <div id="printable-receipt" className="hidden print:block p-2">
-                {receiptData && (
-                    <div className="text-center w-full">
-                        <h2 className="font-bold text-lg mb-1">AURA BAKERY</h2>
-                        <p className="text-xs mb-1">NIT: XXXXXXXXX</p>
-                        <p className="text-xs mb-3">Medellín, Colombia</p>
-
-                        <div className="border-t border-dashed border-black my-2"></div>
-                        <p className="text-xs text-left mb-1">Ticket: #{receiptData.orderNumber}</p>
-                        <p className="text-xs text-left mb-1">Fecha: {new Date().toLocaleDateString()}</p>
-                        <p className="text-xs text-left mb-2">Cajero: {employeeEmail || 'Turno'}</p>
-                        <div className="border-t border-dashed border-black my-2"></div>
-
-                        <table className="w-full text-xs text-left mb-2">
-                            <thead>
-                                <tr>
-                                    <th className="w-2/3">Cant Prod</th>
-                                    <th className="w-1/3 text-right">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {receiptData.items.map((item: any, i: number) => (
-                                    <tr key={i}>
-                                        <td className="pr-1">{item.quantity}x {item.name}</td>
-                                        <td className="text-right">${(item.price * item.quantity).toLocaleString('es-CO')}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-
-                        <div className="border-t border-dashed border-black my-2"></div>
-
-                        <div className="flex justify-between text-xs font-bold mt-2">
-                            <span>TOTAL</span>
-                            <span>${receiptData.totalAmount.toLocaleString('es-CO')}</span>
-                        </div>
-                        <p className="text-xs text-left mt-1">Pago: {receiptData.paymentMethod.toUpperCase()}</p>
-
-                        <div className="border-t border-dashed border-black my-2 mt-4"></div>
-                        <p className="text-xs mt-2 font-bold">¡Gracias por tu compra!</p>
-                        <p className="text-xs mb-8">@aurataller</p>
-                    </div>
-                )}
-            </div>
         </div>
     );
 }

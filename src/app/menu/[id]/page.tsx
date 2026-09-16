@@ -1,25 +1,35 @@
-/**
- * @fileoverview Dynamic Product Detail Page
- */
-
 "use client";
 
-// ==========================================
-// 1. IMPORTS
-// ==========================================
+/**
+ * @fileoverview Página de Detalle de Producto Dinámica (/menu/[id]) - Aura Bakery
+ * 
+ * Responsabilidades y Lógica de Negocio:
+ * 1. Carga individual desde Firestore: Obtiene los datos del producto vía `fetchProductById`.
+ * 2. Cálculo dinámico de precio: Suma reactivamente el precio base + delta de la variante
+ *    seleccionada + deltas de todas las preferencias activas.
+ * 3. Analítica y Tracking de Conversión (Meta Pixel):
+ *    - ViewContent: Se dispara al cargar el producto o recalcular el precio.
+ *    - AddToCart: Registra el evento cuando el usuario añade el producto a su bolsa.
+ * 4. Doble túnel de conversión:
+ *    - Agregar al carrito: Suma el producto al estado global persistente de la bolsa.
+ *    - Comprar ahora: Aísla el ítem actual en `setDirectPurchaseItem` y redirige
+ *      inmediatamente a `/checkout?type=direct`, preservando intacto el carrito previo.
+ *    - Pedido asistido: Si es de tipo 'advisor_only', desvía el flujo directo a WhatsApp.
+ */
+
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Clock, MessageCircle, ShoppingBag, Zap } from 'lucide-react';
 import { ProductVariant, ProductPreference, AvailabilityType, Product } from '../../../lib/mockData';
 import { useCartStore } from '../../../lib/store';
-import { fetchProductById } from '../../../lib/api';
+import { fetchProductById, getLocalProductImage } from '../../../lib/api';
 import * as fbq from '../../../lib/fpixel';
 
-// ==========================================
-// 2. HELPER FUNCTIONS
-// ==========================================
-
+/**
+ * Helper para estructurar visualmente la insignia y el mensaje explicativo
+ * sobre el tiempo de entrega y preparación de cada producto.
+ */
 const getAvailabilityUI = (type: AvailabilityType) => {
   switch (type) {
     case 'asap':
@@ -60,45 +70,56 @@ const getAvailabilityUI = (type: AvailabilityType) => {
   }
 };
 
-// ==========================================
-// 3. MAIN COMPONENT
-// ==========================================
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
 
+  // Acciones del store global de Zustand
   const { addItem, setDirectPurchaseItem } = useCartStore();
 
-  // --- State Management ---
+  // Estado del producto y ciclo de vida de carga
   const [product, setProduct] = useState<Product | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Opciones seleccionadas por el cliente
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [selectedPreferences, setSelectedPreferences] = useState<ProductPreference[]>([]);
 
-  // UX State
-  const [addedToast, setAddedToast] = useState(false);
-  const [localItemCount, setLocalItemCount] = useState(0);
+  // Feedback de interfaz (UX)
+  const [addedToast, setAddedToast] = useState<boolean>(false);
+  const [localItemCount, setLocalItemCount] = useState<number>(0);
 
+  /**
+   * Carga asíncrona de los datos del producto mediante el parámetro dinámico [id].
+   * Por defecto, preselecciona la primera variante disponible.
+   */
   useEffect(() => {
     const loadProduct = async () => {
       if (!params.id) return;
 
-      const fetchedProduct = await fetchProductById(params.id as string);
-
-      if (fetchedProduct) {
-        setProduct(fetchedProduct);
-        if (fetchedProduct.variants && fetchedProduct.variants.length > 0) {
-          setSelectedVariant(fetchedProduct.variants[0]);
+      try {
+        const fetchedProduct = await fetchProductById(params.id as string);
+        if (fetchedProduct) {
+          setProduct(fetchedProduct);
+          if (fetchedProduct.variants && fetchedProduct.variants.length > 0) {
+            setSelectedVariant(fetchedProduct.variants[0]);
+          }
         }
+      } catch (error) {
+        console.error("Error al cargar la información del producto:", error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     loadProduct();
   }, [params.id]);
 
-
+  /**
+   * CÁLCULO DE PRECIO EN TIEMPO REAL:
+   * Combina el precio base con el valor incremental (delta) de la variante elegida
+   * y los modificadores/preferencias adicionales seleccionados.
+   */
   const currentPrice = useMemo(() => {
     if (!product) return 0;
     const variantDelta = selectedVariant ? selectedVariant.price_delta : 0;
@@ -106,9 +127,9 @@ export default function ProductDetailPage() {
     return product.basePrice + variantDelta + prefsDelta;
   }, [product, selectedVariant, selectedPreferences]);
 
-
-  // --- Event Handlers ---
-
+  /**
+   * Alterna la selección de preferencias adicionales (multiselección tipo checkbox).
+   */
   const togglePreference = (pref: ProductPreference) => {
     setSelectedPreferences((prev) =>
       prev.some((p) => p.id === pref.id)
@@ -117,7 +138,10 @@ export default function ProductDetailPage() {
     );
   };
 
-  // EVENTO PIXEL: ViewContent
+  /**
+   * TRACKING DE EVENTO: ViewContent (Meta Pixel)
+   * Dispara el evento publicitario cuando se abre el producto o cambia la variante/precio.
+   */
   useEffect(() => {
     if (product) {
       fbq.event('ViewContent', {
@@ -130,25 +154,33 @@ export default function ProductDetailPage() {
     }
   }, [product, currentPrice]);
 
+  /**
+   * Añade el ítem configurado al carrito de compras regular y registra el evento AddToCart.
+   */
   const handleAddToCart = () => {
-    addItem(product!, selectedVariant, selectedPreferences);
+    if (!product) return;
 
-    // EVENTO PIXEL: AddToCart
-    if (product) {
-      fbq.event('AddToCart', {
-        content_name: product.name,
-        content_ids: [product.id],
-        content_type: 'product',
-        value: currentPrice,
-        currency: 'COP',
-      });
-    }
+    addItem(product, selectedVariant, selectedPreferences);
+
+    // Evento de comercio para analítica
+    fbq.event('AddToCart', {
+      content_name: product.name,
+      content_ids: [product.id],
+      content_type: 'product',
+      value: currentPrice,
+      currency: 'COP',
+    });
 
     setAddedToast(true);
-    setLocalItemCount(prevCount => prevCount + 1);
+    setLocalItemCount((prev) => prev + 1);
     setTimeout(() => setAddedToast(false), 2000);
   };
 
+  /**
+   * FLUJO DE COMPRA DIRECTA (Express Checkout):
+   * Si es 'advisor_only', desvía el contacto a WhatsApp.
+   * De lo contrario, genera un ítem aislado y redirige directamente a /checkout?type=direct.
+   */
   const handleBuyNow = () => {
     if (!product) return;
 
@@ -175,54 +207,53 @@ export default function ProductDetailPage() {
     router.push('/checkout?type=direct');
   };
 
-  // ==========================================
-  // 4. RENDER HELPERS
-  // ==========================================
-
+  // Renderizado del estado de carga
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="w-10 h-10 border-4 border-black border-t-transparent rounded-full animate-spin mb-4"></div>
+        <div className="w-10 h-10 border-4 border-black border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-zinc-500 font-medium animate-pulse">Preparando detalles...</p>
       </div>
     );
   }
 
+  // Renderizado en caso de no existir el producto
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <h1 className="text-2xl font-bold mb-4">Producto no encontrado</h1>
-        <Link href="/menu" className="text-blue-500 hover:underline">Volver al menú</Link>
+        <Link href="/menu" className="text-blue-500 hover:underline font-medium">
+          Volver al menú
+        </Link>
       </div>
     );
   }
 
   const ui = getAvailabilityUI(product.availabilityType);
 
-  // ==========================================
-  // 5. MAIN RENDER
-  // ==========================================
   return (
-    <main className="min-h-screen bg-white pb-38">
+    <main className="min-h-screen bg-white pb-38 font-sans">
 
-      {/* --- HERO IMAGE & BACK BUTTON --- */}
+      {/* IMAGEN DE PORTADA Y BOTÓN DE RETORNO */}
       <div className="relative h-72 w-full md:h-96">
         <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${product.imageUrl})` }}
+          style={{ backgroundImage: `url(${product.imageUrl || getLocalProductImage(product.name)})` }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         <Link
           href="/menu"
           className="absolute top-6 left-6 bg-white/90 backdrop-blur-sm p-3 rounded-full text-zinc-900 shadow-md hover:bg-white transition-colors"
+          aria-label="Volver al menú"
         >
           <ArrowLeft size={24} />
         </Link>
       </div>
 
+      {/* DETALLES DEL PRODUCTO */}
       <div className="max-w-2xl mx-auto px-6 -mt-8 relative z-10 bg-white rounded-t-3xl pt-8">
 
-        {/* --- PRODUCT HEADER --- */}
+        {/* ENCABEZADO Y PRECIO DINÁMICO */}
         <div className="mb-6">
           <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-3 ${ui.badgeClass}`}>
             {ui.icon} {ui.badge}
@@ -238,7 +269,7 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* --- AVAILABILITY EXPLANATION BANNER --- */}
+        {/* EXPLICACIÓN DE REGLAS DE ENTREGA */}
         <div className="bg-gray-50 rounded-2xl p-4 mb-8 border border-gray-100 flex items-start gap-3">
           <div className="mt-0.5">{ui.icon}</div>
           <p className="text-sm font-medium text-zinc-600 leading-snug">
@@ -246,7 +277,7 @@ export default function ProductDetailPage() {
           </p>
         </div>
 
-        {/* --- VARIANTS SELECTOR (DEFENSIVE FIX) --- */}
+        {/* SELECTOR DE VARIANTES (Tamaños / Presentaciones) */}
         {product.variants && product.variants.length > 0 && (
           <div className="mb-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-3">Elige un tamaño/opción</h3>
@@ -255,16 +286,20 @@ export default function ProductDetailPage() {
                 <label
                   key={variant.id}
                   onClick={() => setSelectedVariant(variant)}
-                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedVariant?.id === variant.id ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'}`}
+                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedVariant?.id === variant.id ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
+                    }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedVariant?.id === variant.id ? 'border-black' : 'border-gray-300'}`}>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedVariant?.id === variant.id ? 'border-black' : 'border-gray-300'
+                      }`}>
                       {selectedVariant?.id === variant.id && <div className="w-2.5 h-2.5 bg-black rounded-full" />}
                     </div>
                     <span className="font-bold text-zinc-900">{variant.name}</span>
                   </div>
                   {variant.price_delta > 0 && (
-                    <span className="hidden text-sm font-bold text-zinc-500">+${variant.price_delta.toLocaleString('es-CO')}</span>
+                    <span className="text-sm font-bold text-zinc-500">
+                      +${variant.price_delta.toLocaleString('es-CO')}
+                    </span>
                   )}
                 </label>
               ))}
@@ -272,27 +307,31 @@ export default function ProductDetailPage() {
           </div>
         )}
 
-        {/* --- PREFERENCES SELECTOR (DEFENSIVE FIX) --- */}
+        {/* SELECTOR DE PREFERENCIAS ADICIONALES (Modificadores) */}
         {product.preferences && product.preferences.length > 0 && (
           <div className="mb-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-3">Preferencias (Opcional)</h3>
             <div className="space-y-3">
               {product.preferences.map((pref) => {
-                const isSelected = selectedPreferences.some(p => p.id === pref.id);
+                const isSelected = selectedPreferences.some((p) => p.id === pref.id);
                 return (
                   <label
                     key={pref.id}
                     onClick={() => togglePreference(pref)}
-                    className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'}`}
+                    className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-black bg-zinc-50' : 'border-gray-100 hover:border-gray-200'
+                      }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isSelected ? 'border-black bg-black' : 'border-gray-300'}`}>
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${isSelected ? 'border-black bg-black' : 'border-gray-300'
+                        }`}>
                         {isSelected && <div className="w-2 h-2 bg-white rounded-sm" />}
                       </div>
                       <span className="font-bold text-zinc-900">{pref.name}</span>
                     </div>
                     {pref.price_delta > 0 && (
-                      <span className="hidden text-sm font-bold text-zinc-500">+${pref.price_delta.toLocaleString('es-CO')}</span>
+                      <span className="text-sm font-bold text-zinc-500">
+                        +${pref.price_delta.toLocaleString('es-CO')}
+                      </span>
                     )}
                   </label>
                 );
@@ -303,11 +342,11 @@ export default function ProductDetailPage() {
 
       </div>
 
-      {/* --- STICKY ACTION BUTTONS --- */}
+      {/* BARRA DE ACCIÓN INFERIOR PERSISTENTE */}
       <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-100 p-4 pb-6 z-40 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
         <div className={`max-w-2xl mx-auto flex flex-col gap-3 ${localItemCount > 0 ? 'flex-col-reverse' : ''}`}>
 
-          {/* BUY NOW / CHECKOUT BUTTON */}
+          {/* BOTÓN DE COMPRA DIRECTA / ASESOR */}
           <button
             onClick={handleBuyNow}
             className="w-full bg-black text-white text-lg font-bold py-4 rounded-full flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors shadow-lg active:scale-95"
@@ -321,11 +360,14 @@ export default function ProductDetailPage() {
             )}
           </button>
 
-          {/* ADD TO CART BUTTON */}
+          {/* BOTÓN DE AGREGAR AL CARRITO */}
           {product.availabilityType !== 'advisor_only' && (
             <button
               onClick={handleAddToCart}
-              className={`w-full text-lg font-bold py-3.5 rounded-full flex items-center justify-center gap-2 transition-all border-2 active:scale-95 ${addedToast ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-200 text-zinc-900 hover:border-black'}`}
+              className={`w-full text-lg font-bold py-3.5 rounded-full flex items-center justify-center gap-2 transition-all border-2 active:scale-95 ${addedToast
+                ? 'bg-green-50 border-green-500 text-green-700'
+                : 'bg-white border-gray-200 text-zinc-900 hover:border-black'
+                }`}
             >
               {addedToast ? (
                 '¡Agregado al carrito!'

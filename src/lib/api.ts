@@ -1,9 +1,27 @@
+/**
+ * @fileoverview Motor de Datos, Inventario de 3 Niveles y Transacciones - Aura Bakery
+ * 
+ * Responsabilidades:
+ * 1. Modelo de Inventario 3-Tier:
+ *    - 'raw_material': Insumos primarios (café, harina, leche, vasos).
+ *    - 'wip': Pre-producciones intermedias (masas base, rellenos).
+ *    - 'finished_good': Productos para la venta final al consumidor.
+ * 2. Transacciones Atómicas (ACID):
+ *    - `processPOSOrder`: Descuento inteligente en ventas de caja o web (insumos BOM para bebidas, stock físico para pasteles).
+ *    - `recordProductionBatch`: Deducción de materias primas e incremento de stock al hornear lotes.
+ * 3. Operaciones CRUD en Firestore:
+ *    - Gestión completa de `inventory_items`, lectura de pedidos y configuración de entregas.
+ * 4. Generación de Tickets Secuenciales:
+ *    - `generateOrderNumber`: Contador incremental atómico en 'config/order_counter'.
+ * 5. Helpers de Respaldo Visual:
+ *    - `getLocalProductImage`: Enrutamiento a imágenes locales con fallback al logotipo institucional.
+ */
+
 import {
   collection,
   getDocs,
   query,
   where,
-  orderBy,
   doc,
   getDoc,
   runTransaction,
@@ -17,7 +35,10 @@ import {
 import { db } from "./firebase";
 import { Product, DeliveryWindow } from "./mockData";
 
-// --- Delivery Configuration Interface ---
+// =========================================================================
+// 1. INTERFACES Y DEFINICIONES DE TIPOS
+// =========================================================================
+
 export interface DeliveryConfig {
   closedDaysOfWeek: number[]; 
   blackoutDates: string[];    
@@ -29,8 +50,6 @@ export const DEFAULT_DELIVERY_TIME_SLOTS = [
   "Mañana (8:00 AM - 12:00 PM)",
   "Tarde (1:00 PM - 5:00 PM)",
 ];
-
-// --- 3-Tier Inventory Interfaces ---
 
 export type InventoryType = 'raw_material' | 'wip' | 'finished_good';
 
@@ -51,6 +70,9 @@ export interface InventoryItem {
   bom?: BillOfMaterials[];
   salesChannels?: ('pos' | 'web' | 'rappi')[];
   imageUrl?: string;
+  description?: string;
+  variants?: any[];
+  preferences?: any[];
 }
 
 export interface POSOrder {
@@ -79,13 +101,15 @@ export interface POSOrder {
   orderStatus?: string;
 }
 
-// --- POS & Inventory API Functions ---
+// =========================================================================
+// 2. CONSULTAS DE INVENTARIO
+// =========================================================================
 
 /**
- * Fetches all inventory items (Raw, WIP, Finished) for the POS/Kitchen dashboard.
+ * Obtiene todos los artículos de inventario organizados por tipo y orden alfabético.
  */
 export const fetchInventoryItems = async (): Promise<InventoryItem[]> => {
- try {
+  try {
     const inventoryRef = collection(db, "inventory_items");
     const snapshot = await getDocs(inventoryRef);
     
@@ -106,13 +130,13 @@ export const fetchInventoryItems = async (): Promise<InventoryItem[]> => {
     });
     
   } catch (error) {
-    console.error("Critical error fetching inventory items:", error);
+    console.error("Error al obtener inventario completo:", error);
     return []; 
   }
 };
 
 /**
- * Fetches inventory items filtered by their specific tier type.
+ * Obtiene artículos de inventario filtrados por su nivel en la cadena (Tier).
  */
 export const fetchInventoryByType = async (type: InventoryType): Promise<InventoryItem[]> => {
   try {
@@ -130,14 +154,18 @@ export const fetchInventoryByType = async (type: InventoryType): Promise<Invento
     return items.sort((a, b) => a.name.localeCompare(b.name));
     
   } catch (error) {
-    console.error(`Error fetching inventory for type ${type}:`, error);
+    console.error(`Error al filtrar inventario por tipo ${type}:`, error);
     return [];
   }
 };
 
+// =========================================================================
+// 3. TRANSACCIONES OPERATIVAS (POS & PRODUCCIÓN)
+// =========================================================================
+
 /**
- * Processes a POS sale with Smart Deduction.
- * Pastries deduct from final stock. Drinks deduct from raw materials.
+ * Procesa ventas omnicanal (POS o Web) con deducción inteligente de stock.
+ * Las bebidas descuentan ingredientes mediante receta BOM; la pastelería descuenta de su stock final.
  */
 export const processPOSOrder = async (orderData: Omit<POSOrder, 'orderId' | 'orderNumber' | 'createdAt'>) => {
   try {
@@ -153,7 +181,7 @@ export const processPOSOrder = async (orderData: Omit<POSOrder, 'orderId' | 'ord
 
       itemSnapshots.forEach((snap, index) => {
         if (!snap.exists()) {
-          throw new Error(`El producto no existe en el inventario actual. Por favor, vacía tu carrito y vuelve a agregarlo.`);
+          throw new Error(`El producto no existe en el inventario actual. Por favor actualiza tu pedido.`);
         }
         
         const productData = snap.data() as InventoryItem;
@@ -162,7 +190,7 @@ export const processPOSOrder = async (orderData: Omit<POSOrder, 'orderId' | 'ord
 
         if (isMadeToOrder) {
           const bom = productData.bom || [];
-          bom.forEach((ingredient: any) => {
+          bom.forEach((ingredient) => {
             rawMaterialReads.push({
               ref: doc(db, "inventory_items", ingredient.inventoryItemId),
               qtyNeeded: ingredient.quantity * quantityOrdered
@@ -179,6 +207,7 @@ export const processPOSOrder = async (orderData: Omit<POSOrder, 'orderId' | 'ord
         }
       });
 
+      // Lectura y acumulación de materias primas
       const rawSnaps = await Promise.all(rawMaterialReads.map(rm => transaction.get(rm.ref)));
       const rawMaterialUpdates = new Map<string, number>();
 
@@ -189,9 +218,11 @@ export const processPOSOrder = async (orderData: Omit<POSOrder, 'orderId' | 'ord
         rawMaterialUpdates.set(snap.id, currentRawStock - needed);
       });
 
+      // Escrituras en la base de datos
       batchUpdates.forEach(update => transaction.update(update.ref, { currentStock: update.newStock }));
       rawMaterialUpdates.forEach((newStock, id) => transaction.update(doc(db, "inventory_items", id), { currentStock: newStock }));
 
+      // Registro del documento final de orden
       const orderRef = doc(db, "orders", orderId);
       transaction.set(orderRef, {
         ...orderData,
@@ -203,14 +234,14 @@ export const processPOSOrder = async (orderData: Omit<POSOrder, 'orderId' | 'ord
 
     return { success: true, orderId };
   } catch (error) {
-    console.error("Transaction failed: ", error);
+    console.error("Fallo en la transacción de orden:", error);
     throw error; 
   }
 };
 
 /**
- * Allows the kitchen to record a batch of finished goods.
- * Deducts from raw materials based on the BOM and adds to finished_goods.
+ * Registra un lote de producción horneado por la cocina.
+ * Deduce insumos según la receta BOM y añade las unidades elaboradas a existencias.
  */
 export const recordProductionBatch = async (finishedGoodId: string, quantityProduced: number) => {
   try {
@@ -219,7 +250,7 @@ export const recordProductionBatch = async (finishedGoodId: string, quantityProd
       const finishedGoodSnap = await transaction.get(finishedGoodRef);
 
       if (!finishedGoodSnap.exists()) {
-        throw new Error("Finished good not found in inventory.");
+        throw new Error("El producto terminado no existe en el inventario.");
       }
 
       const finishedGoodData = finishedGoodSnap.data() as InventoryItem;
@@ -233,19 +264,20 @@ export const recordProductionBatch = async (finishedGoodId: string, quantityProd
       bom.forEach((bomItem, index) => {
         const snap = ingredientSnaps[index];
         if (!snap.exists()) {
-          throw new Error(`Ingredient ${bomItem.inventoryItemId} is missing from the database.`);
+          throw new Error(`El insumo ${bomItem.inventoryItemId} no está registrado en la base de datos.`);
         }
 
         const ingredientData = snap.data() as InventoryItem;
         const totalAmountNeeded = bomItem.quantity * quantityProduced;
 
         if (ingredientData.currentStock < totalAmountNeeded) {
-          throw new Error(`Insufficient ${ingredientData.name} to produce this batch. Need ${totalAmountNeeded}, only have ${ingredientData.currentStock}.`);
+          throw new Error(`Insumos insuficientes de ${ingredientData.name} para producir este lote.`);
         }
 
         newIngredientStock.set(snap.id, ingredientData.currentStock - totalAmountNeeded);
       });
 
+      // Actualización de materias primas y registro de movimientos
       ingredientSnaps.forEach(snap => {
         const newStock = newIngredientStock.get(snap.id);
         transaction.update(snap.ref, { currentStock: newStock });
@@ -257,10 +289,11 @@ export const recordProductionBatch = async (finishedGoodId: string, quantityProd
           type: 'production_consumption',
           referenceId: `BATCH-${Date.now()}`,
           timestamp: serverTimestamp(),
-          notes: `Consumed for production of ${finishedGoodData.name}`
+          notes: `Consumido para la producción de ${finishedGoodData.name}`
         });
       });
 
+      // Incremento de producto elaborado
       transaction.update(finishedGoodRef, {
         currentStock: finishedGoodData.currentStock + quantityProduced
       });
@@ -272,26 +305,27 @@ export const recordProductionBatch = async (finishedGoodId: string, quantityProd
         type: 'production_yield',
         referenceId: `BATCH-${Date.now()}`,
         timestamp: serverTimestamp(),
-        notes: `Kitchen Batch Produced`
+        notes: `Lote de cocina producido`
       });
     });
 
-    console.log(`Successfully recorded production of ${quantityProduced} units of ${finishedGoodId}`);
     return { success: true };
-
   } catch (error) {
-    console.error("Production batch failed: ", error);
+    console.error("Error al registrar lote de producción:", error);
     throw error;
   }
 };
 
-// --- Admin Inventory CRUD ---
+// =========================================================================
+// 4. CRUD DE ADMINISTRACIÓN DE INVENTARIO
+// =========================================================================
+
 export const addInventoryItem = async (itemData: Omit<InventoryItem, 'id'>) => {
   try {
     const docRef = await addDoc(collection(db, "inventory_items"), itemData);
     return { success: true, id: docRef.id };
   } catch (error) {
-    console.error("Error adding item:", error);
+    console.error("Error al agregar ítem al inventario:", error);
     throw error;
   }
 };
@@ -302,7 +336,7 @@ export const updateInventoryItem = async (id: string, itemData: Partial<Inventor
     await updateDoc(itemRef, itemData);
     return { success: true };
   } catch (error) {
-    console.error("Error updating item:", error);
+    console.error("Error al actualizar ítem de inventario:", error);
     throw error;
   }
 };
@@ -313,12 +347,15 @@ export const deleteInventoryItem = async (id: string) => {
     await deleteDoc(itemRef);
     return { success: true };
   } catch (error) {
-    console.error("Error deleting item:", error);
+    console.error("Error al eliminar ítem de inventario:", error);
     throw error;
   }
 };
 
-// --- Delivery Configuration & Setup ---
+// =========================================================================
+// 5. PARÁMETROS OPERATIVOS Y PEDIDOS
+// =========================================================================
+
 export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
   try {
     const configRef = doc(db, "settings", "delivery");
@@ -334,28 +371,21 @@ export const fetchDeliveryConfig = async (): Promise<DeliveryConfig | null> => {
       } as DeliveryConfig;
     } else {
       return {
-          closedDaysOfWeek: [0],
-          blackoutDates: [],
-          cutoffTime: 17,
-          deliveryWindows: ["Mañana (8:00 AM - 12:00 PM)", "Tarde (1:00 PM - 5:00 PM)"]
+        closedDaysOfWeek: [0],
+        blackoutDates: [],
+        cutoffTime: 17,
+        deliveryWindows: ["Mañana (8:00 AM - 12:00 PM)", "Tarde (1:00 PM - 5:00 PM)"]
       };
     }
   } catch (error) {
-    console.error("Error fetching delivery config:", error);
+    console.error("Error al obtener configuración de entrega:", error);
     return null;
   }
 };
 
-export const fetchFeaturedProducts = async (): Promise<any[]> => {
-  try {
-    const allProducts = await fetchProducts();
-    return allProducts.slice(0, 4);
-  } catch (error) {
-    console.error("Error fetching featured products:", error);
-    return [];
-  }
-};
-
+/**
+ * Generador atómico de números secuenciales para tickets de orden.
+ */
 export const generateOrderNumber = async (): Promise<number> => {
   const counterRef = doc(db, "config", "order_counter");
   return await runTransaction(db, async (transaction) => {
@@ -383,11 +413,18 @@ export const createOrder = async (orderData: any) => {
     });
     return { success: true, orderId };
   } catch (error) {
-    console.error("Error creating order:", error);
+    console.error("Error al crear la orden:", error);
     throw error;
   }
 };
 
+// =========================================================================
+// 6. ADAPTADORES PARA LA TIENDA WEB
+// =========================================================================
+
+/**
+ * Obtiene los productos del menú autorizados para el canal 'web'.
+ */
 export const fetchProducts = async (): Promise<any[]> => {
   try {
     const inventoryRef = collection(db, "inventory_items");
@@ -397,19 +434,63 @@ export const fetchProducts = async (): Promise<any[]> => {
     const products: any[] = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
+      const channels = data.salesChannels || [];
+
+      // Muestra en la web únicamente productos con el canal habilitado
+      if (channels.length > 0 && !channels.includes('web')) {
+        return;
+      }
+
       products.push({
         id: docSnap.id,
         name: data.name,
-        description: data.category || "Delicioso producto de Aura",
+        description: data.description || data.category || "Delicioso producto de Aura",
+        category: data.category || "Otros",
         basePrice: data.costPerUnit,
         isActive: true,
-        imageUrl: getLocalProductImage(data.name)
+        imageUrl: data.imageUrl || getLocalProductImage(data.name)
       });
     });
     return products;
   } catch (error) {
-    console.error("Error fetching products:", error);
+    console.error("Error al cargar productos de la tienda web:", error);
     return [];
+  }
+};
+
+export const fetchFeaturedProducts = async (): Promise<any[]> => {
+  try {
+    const allProducts = await fetchProducts();
+    return allProducts.slice(0, 4);
+  } catch (error) {
+    console.error("Error al obtener productos destacados:", error);
+    return [];
+  }
+};
+
+export const fetchProductById = async (productId: string): Promise<any | null> => {
+  try {
+    const productRef = doc(db, "inventory_items", productId);
+    const docSnap = await getDoc(productRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return {
+        id: docSnap.id,
+        name: data.name,
+        description: data.description || data.category || "",
+        category: data.category || "Otros",
+        basePrice: data.costPerUnit,
+        isActive: true,
+        variants: data.variants || [],
+        preferences: data.preferences || [],
+        imageUrl: data.imageUrl || getLocalProductImage(data.name)
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Error al buscar producto por ID:", error);
+    return null;
   }
 };
 
@@ -426,7 +507,7 @@ export const fetchActiveWindows = async (): Promise<DeliveryWindow[]> => {
     });
     return windows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   } catch (error) {
-    console.error("Error fetching windows:", error);
+    console.error("Error al obtener ventanas de entrega:", error);
     return [];
   }
 };
@@ -438,121 +519,36 @@ export const fetchGlobalConfig = async () => {
     if (docSnap.exists()) return docSnap.data();
     return null;
   } catch (error) {
-    console.error("Error fetching config:", error);
+    console.error("Error al obtener configuración global:", error);
     return null;
   }
 };
 
-export const fetchProductById = async (productId: string): Promise<any | null> => {
-  try {
-    const productRef = doc(db, "inventory_items", productId);
-    const docSnap = await getDoc(productRef);
-    
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        name: data.name,
-        description: data.category || "",
-        basePrice: data.costPerUnit,
-        isActive: true,
-        imageUrl: getLocalProductImage(data.name)
-      };
-    }
-    return null;
-  } catch (error) {
-    console.error("Error fetching single product:", error);
-    return null;
-  }
-};
+// =========================================================================
+// 7. RESOLUCIÓN DE IMÁGENES LOCALES
+// =========================================================================
 
-export const fetchAllProductsAdmin = async (): Promise<any[]> => {
-  return fetchProducts();
-};
-
-export const seedInitialMenu = async () => {
-  const batch = writeBatch(db);
-  const menuItems = [
-    { name: "Pasteis de Nata", type: "finished_good", category: "Clásicos", costPerUnit: 8.00, currentStock: 50, minStockLevel: 10, unit: "unidades" },
-    { name: "Tarta Vasca", type: "finished_good", category: "Clásicos", costPerUnit: 16.00, currentStock: 12, minStockLevel: 3, unit: "porción" },
-    { name: "Espresso", type: "finished_good", category: "Café", costPerUnit: 6.00, currentStock: 100, minStockLevel: 20, unit: "taza" }
-  ];
-
-  menuItems.forEach((item) => {
-    const docId = item.name.toLowerCase().replace(/\s+/g, '-');
-    const itemRef = doc(collection(db, "inventory_items"), docId);
-    batch.set(itemRef, item);
-  });
-
-  await batch.commit();
-  console.log("Database seeded successfully!");
-};
-
-export const getLocalProductImage = (name: string) => {
-  if (!name) return '/images/placeholder.png'; 
+/**
+ * Resuelve la ruta estática de imagen correspondiente según el nombre del ítem.
+ */
+export const getLocalProductImage = (name: string): string => {
+  if (!name) return '/images/logo-aura.png'; 
   
   const lowerName = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   
-  if (lowerName.includes('pasteis') || lowerName.includes('nata')) return '/products/pasteis-de-nata.png';
-  if (lowerName.includes('vasca')) return '/products/tarta-vasca.png';
-  if (lowerName.includes('latte')) return '/products/latte.png';
-  if (lowerName.includes('doble chocolate')) return '/products/cookie-chocolate.png';
-  if (lowerName.includes('red velvet')) return '/products/cookie-red.png';
-  if (lowerName.includes('aura') && lowerName.includes('cookie')) return '/products/cookie-aura.png';
-  if (lowerName.includes('cruller')) return '/products/cruller.png';
-  if (lowerName.includes('maracuya') || lowerName.includes('passion')) return '/products/entremet-passion.png';
-  if (lowerName.includes('dark') || lowerName.includes('entremet')) return '/products/entremet-chocolate.png';
-  if (lowerName.includes('selva')) return '/products/selva-negra.png';
-  if (lowerName.includes('tiramisu')) return '/products/tiramisu.png';
-  if (lowerName.includes('brownie')) return '/products/brownie.png';
-  if (lowerName.includes('smothie') || lowerName.includes('smoothie')) return '/products/smothie.png';
-  if (lowerName.includes('cafe') || lowerName.includes('espresso') || lowerName.includes('americano')) return '/products/coffee-drinks.png';
+  if (lowerName.includes('pasteis') || lowerName.includes('nata')) return '/products/pasteis-de-nata.jpg';
+  if (lowerName.includes('vasca')) return '/products/tarta-vasca.jpg';
+  if (lowerName.includes('doble chocolate')) return '/products/cookie-chocolate.jpg';
+  if (lowerName.includes('red velvet')) return '/products/cookie-red.jpg';
+  if (lowerName.includes('aura') && lowerName.includes('cookie')) return '/products/cookie-aura.jpg';
+  if (lowerName.includes('cruller')) return '/products/cruller.jpg';
+  if (lowerName.includes('maracuya') || lowerName.includes('passion')) return '/products/entremet-passion.jpg';
+  if (lowerName.includes('dark') || lowerName.includes('entremet')) return '/products/entremet-chocolate.jpg';
+  if (lowerName.includes('selva')) return '/products/selva-negra.jpg';
+  if (lowerName.includes('tiramisu')) return '/products/tiramisu.jpg';
+  if (lowerName.includes('brownie')) return '/products/brownie.jpg';
+  if (lowerName.includes('torta')) return '/products/selva-negra.jpg';
   
-  return '/images/placeholder.png'; 
-};
-
-export const seedRawMaterialsAndBOM = async () => {
-  const batch = writeBatch(db);
-
-  const rawMaterials = [
-    { id: "cafe-grano", name: "Café en Grano (House Blend)", type: "raw_material", currentStock: 5000, minStockLevel: 1000, unit: "g", costPerUnit: 0.05 },
-    { id: "leche-entera", name: "Leche Entera", type: "raw_material", currentStock: 10000, minStockLevel: 2000, unit: "ml", costPerUnit: 0.003 },
-    { id: "harina-trigo", name: "Harina de Trigo", type: "raw_material", currentStock: 20000, minStockLevel: 5000, unit: "g", costPerUnit: 0.002 },
-    { id: "mantequilla", name: "Mantequilla", type: "raw_material", currentStock: 5000, minStockLevel: 1000, unit: "g", costPerUnit: 0.015 },
-    { id: "vaso-12oz", name: "Vaso de Cartón 12oz", type: "raw_material", currentStock: 500, minStockLevel: 100, unit: "unidades", costPerUnit: 0.20 },
-  ];
-
-  rawMaterials.forEach((item) => {
-    const { id, ...data } = item;
-    const ref = doc(db, "inventory_items", id);
-    batch.set(ref, data);
-  });
-
-  const latteRef = doc(db, "inventory_items", "latte");
-  batch.update(latteRef, {
-    bom: [
-      { inventoryItemId: "cafe-grano", quantity: 18 },
-      { inventoryItemId: "leche-entera", quantity: 200 },
-      { inventoryItemId: "vaso-12oz", quantity: 1 }
-    ]
-  });
-
-  const americanoRef = doc(db, "inventory_items", "americano");
-  batch.update(americanoRef, {
-    bom: [
-      { inventoryItemId: "cafe-grano", quantity: 36 },
-      { inventoryItemId: "vaso-12oz", quantity: 1 }
-    ]
-  });
-
-  const pasteisRef = doc(db, "inventory_items", "pasteis-de-nata");
-  batch.update(pasteisRef, {
-    bom: [
-      { inventoryItemId: "harina-trigo", quantity: 25 },
-      { inventoryItemId: "mantequilla", quantity: 15 }
-    ]
-  });
-
-  await batch.commit();
-  console.log("Raw Materials and Recipes seeded successfully!");
+  
+  return '/images/logo-aura.png'; 
 };
